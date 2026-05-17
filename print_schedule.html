@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>תוכנית ייצור יומית להדפסה</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Arial', sans-serif; background: #f0f2f5; padding: 20px; color: #333; }
+
+        .config-bar {
+            max-width: 1100px; margin: 0 auto 20px; background: white;
+            padding: 15px 20px; border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            display: flex; gap: 15px; align-items: center; flex-wrap: wrap;
+        }
+        .config-bar label { font-weight: bold; color: #1F3864; font-size: 13px; }
+        .config-bar input {
+            padding: 8px 12px; border: 1px solid #ccc; border-radius: 5px;
+            font-size: 13px; min-width: 280px;
+        }
+        .config-bar button {
+            padding: 9px 20px; background: #27AE60; color: white; border: none;
+            border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 13px;
+        }
+        .config-bar button:hover { background: #239B53; }
+        .status { font-size: 12px; color: #666; margin-right: auto; }
+        .status.ok { color: #27AE60; }
+        .status.error { color: #E74C3C; }
+
+        .container {
+            max-width: 1100px; margin: 0 auto; background: white;
+            padding: 30px; border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center; margin-bottom: 30px;
+            border-bottom: 3px solid #1F3864; padding-bottom: 20px;
+        }
+        .header h1 { color: #1F3864; font-size: 26px; margin-bottom: 10px; }
+        .header .week-info { color: #666; font-size: 14px; }
+
+        .day-section { margin-bottom: 40px; page-break-after: always; page-break-inside: avoid; }
+        .day-section:last-child { page-break-after: auto; }
+
+        .day-header {
+            background: linear-gradient(135deg, #1F3864 0%, #2E4A7A 100%);
+            color: white; padding: 15px 20px; border-radius: 6px 6px 0 0;
+            font-size: 18px; font-weight: bold; text-align: center;
+        }
+
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+        thead { background: #1F3864; color: white; }
+        th {
+            padding: 12px 8px; text-align: center; font-weight: bold;
+            border: 1px solid #1a3057; font-size: 13px;
+        }
+        td {
+            padding: 8px 10px; border: 1px solid #ddd;
+            text-align: center; font-size: 13px;
+        }
+        td.category { background: #E8F0FE; font-weight: bold; color: #1F3864; }
+        td.product-name { text-align: right; }
+        td.product-code { font-weight: bold; color: #1F3864; }
+        td.qty-boxes { background: #FFF8DC; font-weight: bold; font-size: 14px; }
+        td.qty-carts { background: #FFE6CC; font-weight: bold; font-size: 14px; }
+        tbody tr:nth-child(odd) td:not(.qty-boxes):not(.qty-carts):not(.category) { background: #fafafa; }
+        tr.total-row td {
+            background: #27AE60 !important; color: white;
+            font-weight: bold; font-size: 14px; padding: 12px;
+        }
+
+        .empty-day {
+            padding: 30px; text-align: center; color: #999;
+            font-style: italic; background: #f9f9f9; border-radius: 6px;
+        }
+
+        .loading { text-align: center; padding: 50px; color: #666; font-size: 16px; }
+        .spinner {
+            display: inline-block; width: 30px; height: 30px;
+            border: 3px solid #f3f3f3; border-top: 3px solid #1F3864;
+            border-radius: 50%; animation: spin 1s linear infinite;
+            margin-left: 10px; vertical-align: middle;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .print-button { text-align: center; margin-top: 30px; }
+        .print-button button {
+            padding: 12px 35px; background: #1F3864; color: white; border: none;
+            border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold;
+        }
+        .print-button button:hover { background: #2c5282; }
+
+        .setup-box {
+            max-width: 1100px; margin: 0 auto 20px; background: #FFF8DC;
+            border: 2px solid #F4A100; padding: 20px; border-radius: 8px;
+        }
+        .setup-box h3 { color: #1F3864; margin-bottom: 10px; }
+        .setup-box ol { margin-right: 20px; line-height: 1.8; }
+        .setup-box a { color: #1F3864; font-weight: bold; }
+
+        @media print {
+            body { background: white; padding: 0; }
+            .config-bar, .print-button, .setup-box { display: none; }
+            .container { box-shadow: none; padding: 0; max-width: 100%; }
+            .day-section { page-break-after: always; }
+            .day-section:last-child { page-break-after: auto; }
+        }
+    </style>
+</head>
+<body>
+    <div class="setup-box" id="setupBox">
+        <h3>⚙️ הגדרה ראשונית — נדרשת פעם אחת בלבד</h3>
+        <ol>
+            <li>היכנס ל-<a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console</a></li>
+            <li>צור פרויקט חדש (או בחר פרויקט קיים)</li>
+            <li>הפעל את <strong>Google Sheets API</strong>: <a href="https://console.cloud.google.com/apis/library/sheets.googleapis.com" target="_blank">לחץ כאן</a> → Enable</li>
+            <li>חזור ל-<a href="https://console.cloud.google.com/apis/credentials" target="_blank">Credentials</a> → Create Credentials → API Key → העתק את ה-Key</li>
+            <li>פתח את הגיליון שלך → Share → "Anyone with the link" → Viewer</li>
+            <li>הדבק את ה-API Key למטה ולחץ "רענן נתונים"</li>
+        </ol>
+    </div>
+
+    <div class="config-bar">
+        <label>🔑 API Key:</label>
+        <input type="text" id="apiKey" placeholder="הדבק את ה-API Key שיצרת ב-Google Cloud" />
+        <button onclick="loadData()">🔄 רענן נתונים</button>
+        <span class="status" id="status"></span>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1>📋 תוכנית ייצור יומית להדפסה</h1>
+            <div class="week-info" id="weekInfo">הזן API Key ולחץ "רענן נתונים"</div>
+        </div>
+
+        <div id="content">
+            <div class="loading">
+                <div style="margin-top: 15px;">ממתין להזנת API Key...</div>
+            </div>
+        </div>
+
+        <div class="print-button">
+            <button onclick="window.print()">🖨️ הדפס</button>
+        </div>
+    </div>
+
+    <script>
+        const SHEET_ID = '1FxW4jDt6Fw32ZkDqmZaV2NnKjaCRlRTK';
+        const SHEET_NAME = 'תוכנית ייצור יומית להדפסה';
+        const RANGE = `'${SHEET_NAME}'!A1:F1000`;
+
+        function loadConfig() {
+            const apiKey = localStorage.getItem('gs_apiKey');
+            if (apiKey) {
+                document.getElementById('apiKey').value = apiKey;
+                document.getElementById('setupBox').style.display = 'none';
+            }
+            return apiKey;
+        }
+
+        function showStatus(msg, type) {
+            const el = document.getElementById('status');
+            el.textContent = msg;
+            el.className = `status ${type || ''}`;
+        }
+
+        async function loadData() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+
+            if (!apiKey) {
+                showStatus('יש להזין API Key', 'error');
+                return;
+            }
+
+            localStorage.setItem('gs_apiKey', apiKey);
+            document.getElementById('setupBox').style.display = 'none';
+
+            const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(RANGE)}?key=${apiKey}`;
+
+            document.getElementById('content').innerHTML = '<div class="loading"><div class="spinner"></div><div style="margin-top:15px;">טוען נתונים...</div></div>';
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error?.message || 'שגיאה בטעינה');
+                }
+                const data = await response.json();
+                renderData(data.values || []);
+                showStatus(`✓ עודכן (${new Date().toLocaleTimeString('he-IL')})`, 'ok');
+            } catch (err) {
+                document.getElementById('content').innerHTML = `<div class="empty-day">❌ ${err.message}<br><br><small>בדוק: 1) שה-API Key תקין  2) שהגיליון משותף "Anyone with link"  3) ש-Google Sheets API מופעל</small></div>`;
+                showStatus(`❌ ${err.message}`, 'error');
+            }
+        }
+
+        function renderData(rows) {
+            const container = document.getElementById('content');
+            container.innerHTML = '';
+
+            if (!rows.length) {
+                container.innerHTML = '<div class="empty-day">אין נתונים בגיליון</div>';
+                return;
+            }
+
+            const header = rows[0]?.[0] || '';
+            if (header) document.getElementById('weekInfo').textContent = header;
+
+            const days = [];
+            let currentDay = null;
+
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                const firstCell = (row[0] || '').toString().trim();
+
+                if (firstCell.includes('📅') || firstCell.match(/^(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|ראשון|שני|שלישי|רביעי|חמישי|שישי)/)) {
+                    if (currentDay) days.push(currentDay);
+                    currentDay = { name: firstCell.replace('📅', '').trim(), items: [], total: null };
+                }
+                else if (firstCell.startsWith('סה"כ') && currentDay) {
+                    currentDay.total = {
+                        boxes: row[3] || 0,
+                        units: row[4] || 0,
+                        carts: row[5] || 0
+                    };
+                }
+                else if (currentDay && row[1] && row[3] && parseFloat(row[3]) > 0) {
+                    currentDay.items.push({
+                        category: row[0] || '',
+                        code:     row[1] || '',
+                        name:     row[2] || '',
+                        boxes:    row[3] || 0,
+                        units:    row[4] || 0,
+                        carts:    row[5] || 0
+                    });
+                }
+            }
+            if (currentDay) days.push(currentDay);
+
+            if (!days.length) {
+                container.innerHTML = '<div class="empty-day">לא נמצאו ימים בגיליון — בדוק שמות עמודות ומבנה הנתונים</div>';
+                return;
+            }
+
+            days.forEach(day => {
+                const section = document.createElement('div');
+                section.className = 'day-section';
+
+                const dayHeader = document.createElement('div');
+                dayHeader.className = 'day-header';
+                dayHeader.textContent = day.name;
+                section.appendChild(dayHeader);
+
+                if (!day.items.length) {
+                    const empty = document.createElement('div');
+                    empty.className = 'empty-day';
+                    empty.textContent = 'אין פריטים לייצור ביום זה';
+                    section.appendChild(empty);
+                    container.appendChild(section);
+                    return;
+                }
+
+                const table = document.createElement('table');
+
+                const thead = document.createElement('thead');
+                thead.innerHTML = `
+                    <tr>
+                        <th>קטגוריה</th>
+                        <th>מק"ט</th>
+                        <th>תאור מוצר</th>
+                        <th>אריזות לייצור</th>
+                        <th>יחידות</th>
+                        <th>עגלות</th>
+                    </tr>`;
+                table.appendChild(thead);
+
+                const tbody = document.createElement('tbody');
+
+                day.items.forEach(item => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td class="category">${escHtml(item.category)}</td>
+                        <td class="product-code">${escHtml(item.code)}</td>
+                        <td class="product-name">${escHtml(item.name)}</td>
+                        <td class="qty-boxes">${fmtNum(item.boxes)}</td>
+                        <td>${fmtNum(item.units)}</td>
+                        <td class="qty-carts">${fmtNum(item.carts)}</td>`;
+                    tbody.appendChild(tr);
+                });
+
+                if (day.total) {
+                    const tr = document.createElement('tr');
+                    tr.className = 'total-row';
+                    tr.innerHTML = `
+                        <td colspan="3">סה"כ יום — ${day.name}</td>
+                        <td>${fmtNum(day.total.boxes)}</td>
+                        <td>${fmtNum(day.total.units)}</td>
+                        <td>${fmtNum(day.total.carts)}</td>`;
+                    tbody.appendChild(tr);
+                }
+
+                table.appendChild(tbody);
+                section.appendChild(table);
+                container.appendChild(section);
+            });
+        }
+
+        function escHtml(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function fmtNum(val) {
+            const n = parseFloat(val);
+            if (isNaN(n)) return val;
+            return n.toLocaleString('he-IL');
+        }
+
+        // טעינה אוטומטית אם יש API Key שמור
+        window.addEventListener('DOMContentLoaded', () => {
+            const saved = loadConfig();
+            if (saved) loadData();
+        });
+    </script>
+</body>
+</html>
