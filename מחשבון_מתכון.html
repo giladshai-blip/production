@@ -312,7 +312,15 @@
     <button class="btn btn-red btn-sm" onclick="deleteRecipe()" id="delRecipeBtn">🗑 מחק</button>
 
     <hr>
-    <label style="font-size:0.85rem; color:#888;">📂 טען מ-Excel</label>
+    <h2>💾 קובץ מתכונים</h2>
+    <button class="btn btn-primary" onclick="saveToFile()" style="width:100%">💾 שמור לקובץ</button>
+    <label class="btn btn-outline" style="width:100%; text-align:center; cursor:pointer; padding:8px 14px">
+      📂 טען מקובץ
+      <input type="file" id="jsonFileInput" accept=".json" onchange="loadFromFile()" style="display:none">
+    </label>
+
+    <hr>
+    <label style="font-size:0.85rem; color:#888;">📂 ייבוא מ-Excel</label>
     <input type="file" id="fileInput" accept=".xlsx" onchange="importExcel()" style="font-size:0.82rem; width:100%">
 
     <!-- Google Sheets -->
@@ -723,6 +731,50 @@ function syncToSheets()  { /* כתיבה דורשת OAuth — ראה הוראו�
 function createSheet(n)  { /* כתיבה דורשת OAuth */ }
 function deleteSheet(n)  { /* כתיבה דורשת OAuth */ }
 function renameSheet(o,n){ /* כתיבה דורשת OAuth */ }
+
+// ─── שמירה וטעינה מקובץ ──────────────────────────────────────────────────────
+function saveToFile() {
+  const data = JSON.stringify({ recipes: state.recipes, active: state.active }, null, 2);
+  const blob = new Blob([data], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "מתכונים.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function loadFromFile() {
+  const file = document.getElementById("jsonFileInput").files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      if (parsed.recipes && typeof parsed.recipes === "object") {
+        state.recipes = parsed.recipes;
+        state.active  = parsed.active && parsed.recipes[parsed.active]
+          ? parsed.active
+          : Object.keys(parsed.recipes)[0];
+        // migrate old format
+        for (const k in state.recipes) {
+          if (Array.isArray(state.recipes[k])) {
+            state.recipes[k] = { ingredients: state.recipes[k], totalKg: 10 };
+          }
+        }
+        save();
+        renderAll();
+        setSyncBadge("נטען ✓", false);
+        setTimeout(() => setSyncBadge("", false), 2000);
+      } else {
+        alert("קובץ לא תקין — חסר מפתח 'recipes'");
+      }
+    } catch (err) {
+      alert("שגיאה בקריאת הקובץ: " + err.message);
+    }
+    document.getElementById("jsonFileInput").value = "";
+  };
+  reader.readAsText(file);
+}
 
 // ─── עזר ─────────────────────────────────────────────────────────────────────
 function esc(str) {
