@@ -89,7 +89,7 @@ def load_recipes(path: str) -> pd.DataFrame:
 # ─── בניית Excel ─────────────────────────────────────────────────────────────
 
 def build_excel(df: pd.DataFrame, total_kg_default: float,
-                output_path: str) -> str:
+                output_path) -> str:
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "יחסי מתכון"
