@@ -1,0 +1,1600 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ניהול מתכונים - ביסקוטי</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  * { font-family: 'Heebo', sans-serif; }
+  
+  :root {
+    --primary: #1a73e8;
+    --primary-dark: #1557b0;
+    --sidebar-width: 260px;
+    --surface: #ffffff;
+    --bg: #f8f9fa;
+    --border: #e0e0e0;
+    --text: #202124;
+    --text-secondary: #5f6368;
+    --danger: #d93025;
+    --success: #1e8e3e;
+  }
+
+  body { background: var(--bg); color: var(--text); margin: 0; padding: 0; }
+
+  /* Sidebar */
+  #sidebar {
+    position: fixed; right: 0; top: 0; height: 100vh;
+    width: var(--sidebar-width); background: #fff;
+    border-left: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    z-index: 100; box-shadow: -2px 0 8px rgba(0,0,0,0.06);
+  }
+
+  .sidebar-header {
+    padding: 20px 16px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar-logo {
+    font-size: 20px; font-weight: 800;
+    color: var(--primary); letter-spacing: -0.5px;
+  }
+  .sidebar-sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+  .nav-section-title {
+    font-size: 11px; font-weight: 600;
+    color: var(--text-secondary); text-transform: uppercase;
+    letter-spacing: 0.8px; padding: 16px 16px 6px;
+  }
+
+  .nav-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px; cursor: pointer; border-radius: 0 24px 24px 0;
+    margin: 2px 8px 2px 0; transition: all 0.15s ease;
+    font-size: 14px; font-weight: 500; color: var(--text);
+  }
+  .nav-item:hover { background: #f1f3f4; }
+  .nav-item.active { background: #e8f0fe; color: var(--primary); font-weight: 600; }
+  .nav-item .icon { font-size: 18px; width: 20px; text-align: center; }
+
+  .filter-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 16px 8px 24px; cursor: pointer;
+    font-size: 13px; color: var(--text-secondary);
+    border-radius: 0 20px 20px 0; margin: 1px 8px 1px 0;
+    transition: all 0.15s;
+  }
+  .filter-item:hover { background: #f1f3f4; color: var(--text); }
+  .filter-item.active { background: #e8f0fe; color: var(--primary); font-weight: 600; }
+  .filter-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  /* Main content */
+  #main {
+    margin-right: var(--sidebar-width);
+    min-height: 100vh; padding: 24px 32px;
+  }
+
+  /* Cards */
+  .card {
+    background: #fff; border-radius: 12px;
+    border: 1px solid var(--border);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+
+  /* Page header */
+  .page-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  .page-title { font-size: 24px; font-weight: 700; color: var(--text); }
+  .page-subtitle { font-size: 14px; color: var(--text-secondary); margin-top: 2px; }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 10px 20px; border-radius: 8px; font-size: 14px;
+    font-weight: 600; cursor: pointer; border: none;
+    transition: all 0.15s; font-family: 'Heebo', sans-serif;
+  }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: var(--primary-dark); box-shadow: 0 2px 8px rgba(26,115,232,0.35); }
+  .btn-outline { background: #fff; color: var(--primary); border: 1px solid var(--primary); }
+  .btn-outline:hover { background: #e8f0fe; }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-danger:hover { background: #b31412; }
+  .btn-sm { padding: 6px 14px; font-size: 13px; }
+  .btn-ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); }
+  .btn-ghost:hover { background: #f1f3f4; }
+  .btn-full { width: 100%; }
+
+  /* Form elements */
+  .form-group { margin-bottom: 20px; position: relative; }
+  .form-label {
+    display: block; font-size: 13px; font-weight: 600;
+    color: var(--text-secondary); margin-bottom: 6px;
+  }
+  .form-control {
+    width: 100%; padding: 10px 14px; border: 1px solid var(--border);
+    border-radius: 8px; font-size: 14px; font-family: 'Heebo', sans-serif;
+    color: var(--text); background: #fff; transition: border-color 0.15s;
+    box-sizing: border-box;
+  }
+  .form-control:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(26,115,232,0.12); }
+  textarea.form-control { resize: vertical; min-height: 100px; }
+  select.form-control { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235f6368' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: left 12px center; }
+
+  /* Table */
+  .data-table { width: 100%; border-collapse: collapse; }
+  .data-table th {
+    background: #f8f9fa; padding: 10px 14px; text-align: right;
+    font-size: 12px; font-weight: 600; color: var(--text-secondary);
+    border-bottom: 2px solid var(--border); text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .data-table td { padding: 10px 14px; border-bottom: 1px solid #f1f3f4; vertical-align: middle; }
+  .data-table tr:hover td { background: #f8f9fa; }
+  .data-table td input, .data-table td select {
+    width: 100%; padding: 6px 10px; border: 1px solid transparent;
+    border-radius: 6px; font-size: 13px; font-family: 'Heebo', sans-serif;
+    background: transparent; transition: all 0.15s; box-sizing: border-box;
+  }
+  .data-table td input:hover, .data-table td select:hover { border-color: var(--border); background: #fff; }
+  .data-table td input:focus, .data-table td select:focus { outline: none; border-color: var(--primary); background: #fff; box-shadow: 0 0 0 2px rgba(26,115,232,0.12); }
+
+  /* Recipe cards in archive */
+  .recipe-card {
+    background: #fff; border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; cursor: pointer; transition: all 0.2s;
+    position: relative; overflow: hidden;
+  }
+  .recipe-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.1); border-color: var(--primary); transform: translateY(-1px); }
+  .recipe-card-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+  .recipe-card-sku { font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; font-family: monospace; }
+  .recipe-card-meta { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* Category badges */
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;
+  }
+  .badge-lazaniot { background: #fce8e6; color: #d93025; }
+  .badge-meyuhadim { background: #e6f4ea; color: #1e8e3e; }
+  .badge-kishim { background: #e8f0fe; color: #1a73e8; }
+  .badge-pashtidot { background: #fef7e0; color: #e37400; }
+
+  /* Autocomplete Dropdown */
+  .autocomplete-dropdown {
+    position: absolute; top: 100%; right: 0; left: 0;
+    background: #fff; border: 1px solid var(--primary); border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15); z-index: 200;
+    max-height: 200px; overflow-y: auto; display: none; margin-top: 4px;
+  }
+  .autocomplete-item {
+    padding: 9px 14px; cursor: pointer; font-size: 13px; display: flex;
+    justify-content: space-between; align-items: center; gap: 12px;
+  }
+  .autocomplete-item:hover { background: #e8f0fe; }
+
+  /* Empty state */
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
+  .empty-icon { font-size: 48px; margin-bottom: 16px; }
+  .empty-title { font-size: 18px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+
+  /* SKU table */
+  .sku-row { font-family: monospace; }
+
+  /* Notification toast */
+  #toast {
+    position: fixed; bottom: 24px; left: 24px;
+    background: #323232; color: #fff; padding: 14px 20px;
+    border-radius: 10px; font-size: 14px; font-weight: 500;
+    opacity: 0; transform: translateY(10px);
+    transition: all 0.25s; z-index: 999; pointer-events: none;
+    max-width: 340px;
+  }
+  #toast.show { opacity: 1; transform: translateY(0); }
+
+  /* Steps display */
+  .step-item { display: flex; gap: 10px; margin-bottom: 10px; align-items: flex-start; }
+  .step-num {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--primary); color: #fff; font-size: 12px;
+    font-weight: 700; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-top: 1px;
+  }
+
+  /* Search */
+  .search-wrap { position: relative; }
+  .search-icon { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--text-secondary); pointer-events: none; font-size: 16px; }
+  .search-input { padding-right: 38px !important; }
+
+  /* ===== PRINT STYLES ===== */
+  @media print {
+    @page { size: A4 landscape; margin: 4mm; }
+
+    body { background: #fff !important; }
+    #sidebar, .no-print, .btn, .page-header .btn { display: none !important; }
+    #main { margin: 0 !important; padding: 0 !important; }
+
+    /* Force single page A4 landscape constraint */
+    html, body {
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    #print-view {
+      display: block !important;
+      width: 100vw;
+      height: 100vh;
+      box-sizing: border-box;
+      overflow: hidden; /* prevents printing second page if content overflows */
+    }
+
+    .print-layout {
+      display: flex;
+      width: 100%;
+      height: 100%;
+      gap: 0;
+      border: 2px solid #000;
+      border-radius: 0;
+      box-sizing: border-box;
+    }
+
+    .print-ingredients { border-left: 2px solid #000; padding: 8mm; box-sizing: border-box; }
+    .print-instructions { padding: 6mm; box-sizing: border-box; overflow:hidden; }
+
+    .print-title {
+      font-size: 24pt; font-weight: 800; margin-bottom: 2mm;
+      border-bottom: 2px solid #000; padding-bottom: 2mm;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    .print-table { width: 100%; border-collapse: collapse; }
+    .print-table th {
+      font-size: var(--pt-th, 12pt); font-weight: 700; border-bottom: 2px solid #000;
+      padding: var(--pt-pad, 2mm) 3mm; text-align: right;
+    }
+    .print-table td {
+      font-size: var(--pt-name, 16pt); font-weight: 700; padding: var(--pt-pad, 2mm) 3mm;
+      border-bottom: 1px solid #ccc; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .print-table td.unit-col { font-size: var(--pt-unit, 14pt); color: #333; font-weight: 500; }
+    .print-table td.qty-col { font-size: var(--pt-qty, 18pt); font-weight: 800; color: #000; }
+
+    .print-instructions-title { font-size: 14pt; font-weight: 700; margin-bottom: 3mm; }
+    .print-instructions-text { font-size: var(--pt-inst, 11pt); line-height: 1.4; }
+
+    #screen-content, #toast { display: none !important; }
+  }
+
+  @media screen { #print-view { display: none; } }
+
+  .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .count-badge { background: #e8f0fe; color: var(--primary); padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; margin-right: 8px; }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-logo">🍞 ביסקוטי</div>
+    <div class="sidebar-sub">מערכת ניהול מתכונים</div>
+  </div>
+
+  <div style="padding: 8px 0; flex:1; overflow-y:auto;">
+    <div class="nav-section-title">ניווט</div>
+    <div class="nav-item active" id="nav-new" onclick="showPage('new')">
+      <span class="icon">✏️</span> מתכון חדש
+    </div>
+    <div class="nav-item" id="nav-archive" onclick="showPage('archive')">
+      <span class="icon">📚</span> ארכיון מתכונים
+    </div>
+    <div class="nav-item" id="nav-parentSku" onclick="showPage('parentSku')">
+      <span class="icon">📦</span> מסד מוצרי אב
+    </div>
+    <div class="nav-item" id="nav-sku" onclick="showPage('sku')">
+      <span class="icon">🗄️</span> מסד חו"ג
+    </div>
+    <div class="nav-item" id="nav-calc" onclick="showPage('calc')">
+      <span class="icon">⚖️</span> מחשבון יחסים
+    </div>
+
+    <hr class="divider" style="margin: 8px 16px;">
+
+    <div class="nav-section-title">סינון לפי קטגוריה</div>
+    <div class="filter-item active" id="filter-all" onclick="setFilter('all')">
+      <div class="filter-dot" style="background:#9aa0a6;"></div> כל הקטגוריות
+    </div>
+    <div class="filter-item" id="filter-לזניות" onclick="setFilter('לזניות')">
+      <div class="filter-dot" style="background:#d93025;"></div> לזניות
+    </div>
+    <div class="filter-item" id="filter-מיוחדים" onclick="setFilter('מיוחדים')">
+      <div class="filter-dot" style="background:#1e8e3e;"></div> מיוחדים
+    </div>
+    <div class="filter-item" id="filter-קישים" onclick="setFilter('קישים')">
+      <div class="filter-dot" style="background:#1a73e8;"></div> קישים
+    </div>
+    <div class="filter-item" id="filter-פשטידות" onclick="setFilter('פשטידות')">
+      <div class="filter-dot" style="background:#e37400;"></div> פשטידות
+    </div>
+  </div>
+
+  <div style="padding: 16px; border-top: 1px solid var(--border); display:flex; flex-direction:column; gap:8px;">
+    <button class="btn btn-primary btn-full" onclick="forceSave()">💾 שמור נתונים</button>
+    <button class="btn btn-outline btn-full" onclick="downloadBackup()">📁 שמור בשם (גיבוי)</button>
+    <button class="btn btn-ghost btn-full" onclick="exportDatabase()">🌐 ייצא ל-HTML</button>
+    <label class="btn btn-ghost btn-full" style="margin:0; text-align:center;">
+      <input type="file" id="backup-file" style="display:none;" onchange="restoreBackup(event)">
+      📂 פתח קובץ מגיבוי
+    </label>
+  </div>
+</div>
+
+<div id="main">
+  <div id="screen-content">
+
+    <!-- PAGE: NEW RECIPE -->
+    <div id="page-new">
+      <div class="page-header">
+        <div>
+          <div class="page-title">✏️ מתכון חדש</div>
+          <div class="page-subtitle">הוסף מתכון חדש למאגר</div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <button class="btn btn-outline no-print" onclick="importFromJson()" style="color:#1e8e3e; border-color:#1e8e3e;">📥 ייבוא מ-JSON</button>
+          <button id="eng-toggle-new" class="btn btn-ghost no-print" onclick="toggleEnglishEdit()" style="display:flex;align-items:center;gap:8px;border:2px solid var(--border);">
+            <span>🇬🇧</span><span id="eng-toggle-new-label">הוסף תרגום</span>
+          </button>
+          <button class="btn btn-ghost no-print" onclick="clearForm()">🗑️ נקה טופס</button>
+          <button class="btn btn-primary no-print" onclick="saveRecipe()">💾 שמור מתכון</button>
+        </div>
+      </div>
+
+      <!-- Main info -->
+      <div class="card" style="padding: 24px; margin-bottom: 20px;">
+        <div class="grid-3" style="margin-bottom: 20px;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">שם המתכון / מוצר אב *</label>
+            <input type="text" id="f-title" class="form-control" placeholder="לדוגמה: קיש פטריות בינוני" autocomplete="off"
+                   oninput="showParentDropdown('f-title', this.value)" onblur="hideParentDropdown('f-title')">
+            <div id="dd-f-title" class="autocomplete-dropdown"></div>
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">שם באנגלית (לתרגום)</label>
+            <input type="text" id="f-title-en" class="form-control" placeholder="e.g. Mushroom Quiche" dir="ltr" autocomplete="off">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">SKU אב (מוצר מוגמר)</label>
+            <input type="text" id="f-sku" class="form-control" placeholder="לדוגמה: 36001" style="font-family:monospace;" autocomplete="off"
+                   oninput="showParentDropdown('f-sku', this.value)" onblur="hideParentDropdown('f-sku')">
+            <div id="dd-f-sku" class="autocomplete-dropdown"></div>
+          </div>
+        </div>
+        <div class="grid-3">
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">קטגוריה *</label>
+            <select id="f-category" class="form-control">
+              <option value="">-- בחר קטגוריה --</option>
+              <option value="לזניות">לזניות</option>
+              <option value="מיוחדים">מיוחדים</option>
+              <option value="קישים">קישים</option>
+              <option value="פשטידות">פשטידות</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">משקל ליחידה (גרם/ק"ג)</label>
+            <input type="text" id="f-unit-weight" class="form-control" placeholder="לדוגמה: 1.5 ק''ג או 500 גרם">
+          </div>
+        </div>
+      </div>
+
+      <!-- Excel Paste Area -->
+      <div class="card" style="padding: 24px; margin-bottom: 20px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+          <div>
+            <div style="font-size:16px;font-weight:700;">📋 ייבוא רכיבים מ-Excel</div>
+            <div style="font-size:13px;color:var(--text-secondary);margin-top:2px;">המערכת תזהה לבד: מק"ט (מספרים), שם רכיב (טקסט) וכמות (עשרוני). יחידת מידה תמיד תוגדר כ-ק"ג.</div>
+          </div>
+          <button class="btn btn-ghost btn-sm no-print" onclick="clearIngredients()">נקה רכיבים</button>
+        </div>
+        <textarea id="paste-area" class="form-control" rows="4"
+          placeholder="הדבק נתונים ישירות מהאקסל כאן..."
+          oninput="parseExcelSmart()"
+          style="font-family:monospace; font-size:13px; background:#f8f9fa;"></textarea>
+      </div>
+
+      <!-- Ingredients Table -->
+      <div class="card" style="padding: 24px; margin-bottom: 20px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+          <div style="font-size:16px; font-weight:700;">
+            🥬 רכיבים
+            <span class="count-badge" id="ingredient-count">0</span>
+          </div>
+          <button class="btn btn-outline btn-sm no-print" onclick="addIngredientRow()">+ הוסף שורה</button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="data-table" id="ingredients-table">
+            <thead>
+              <tr>
+                <th style="width:140px;">מקט</th>
+                <th>שם רכיב</th>
+                <th id="th-name-en" style="width:160px;display:none;">Name (EN)</th>
+                <th style="width:110px;">כמות</th>
+                <th style="width:130px;">יחידת מידה</th>
+                <th style="width:60px;" class="no-print">⚙️</th>
+              </tr>
+            </thead>
+            <tbody id="ingredients-body"></tbody>
+          </table>
+        </div>
+      </div>
+      
+      <!-- Instructions Form -->
+      <div class="card" style="padding: 24px;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" style="font-size:16px; color:var(--text);">📝 הוראות הכנה (אופציונלי)</label>
+          <div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">אם לא תוסיף הוראות, טבלת הרכיבים תוגדל על פני כל הדף בהדפסה.</div>
+          <textarea id="f-instructions" class="form-control" rows="6" placeholder="1. חמם תנור ל-180 מעלות&#10;2. ערבב את כל החומרים היבשים..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE: ARCHIVE -->
+    <div id="page-archive" style="display:none;">
+      <div class="page-header">
+        <div>
+          <div class="page-title">📚 ארכיון מתכונים</div>
+          <div class="page-subtitle" id="archive-subtitle">כל המתכונים השמורים</div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <div class="search-wrap">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="search-input" class="form-control search-input" placeholder="חפש מתכון..." oninput="renderArchive()" style="width:220px;">
+          </div>
+          <button class="btn btn-primary no-print" onclick="showPage('new')">+ מתכון חדש</button>
+        </div>
+      </div>
+      <div id="archive-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:16px;"></div>
+    </div>
+
+    <!-- PAGE: RECIPE DETAIL -->
+    <div id="page-detail" style="display:none;">
+      <div class="page-header no-print">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <button class="btn btn-ghost btn-sm" onclick="showPage('archive')">← חזרה</button>
+          <div>
+            <div class="page-title" id="detail-title-header"></div>
+            <div style="font-size:13px;color:var(--text-secondary);" id="detail-sku-header"></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <button class="btn btn-outline no-print" onclick="openInCalc(currentRecipeId)" style="color:#7b2ff7; border-color:#7b2ff7;">⚖️ מחשבון</button>
+          <button class="btn btn-outline no-print" onclick="editCurrentRecipe()">✏️ ערוך</button>
+          <button class="btn btn-danger no-print" onclick="deleteCurrentRecipe()">🗑️ מחק</button>
+          <button id="eng-toggle-btn" class="btn btn-ghost no-print" onclick="toggleEnglish()" style="display:flex;align-items:center;gap:8px;border:2px solid var(--border);">
+            <span style="font-size:16px;">🇬🇧</span><span id="eng-toggle-label">ללא תרגום</span>
+          </button>
+          <button class="btn btn-outline no-print" onclick="exportRecipeToExcel()" style="color:#1e8e3e; border-color:#1e8e3e;">📊 ייצא לאקסל</button>
+          <button class="btn btn-primary no-print" onclick="window.print()">🖨️ הדפס / שמור כ-PDF</button>
+        </div>
+      </div>
+      <div id="detail-content"></div>
+    </div>
+
+    <!-- PAGE: PARENT SKU DB -->
+    <div id="page-parentSku" style="display:none;">
+      <div class="page-header">
+        <div>
+          <div class="page-title">📦 מסד מוצרי אב</div>
+          <div class="page-subtitle">כל הקישים, הפשטידות והמוצרים המוגמרים</div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <div class="search-wrap">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="parent-sku-search" class="form-control search-input" placeholder="חפש מוצר אב..." oninput="renderParentSKUDb()" style="width:220px;">
+          </div>
+          <button class="btn btn-ghost btn-sm no-print" onclick="addParentSkuRow()">+ הוסף מוצר אב</button>
+        </div>
+      </div>
+      <div class="card" style="overflow:hidden;">
+        <table class="data-table" id="parent-sku-table">
+          <thead>
+            <tr>
+              <th>שם מוצר אב</th>
+              <th style="width:150px;">SKU אב</th>
+              <th style="width:150px;">קטגוריה</th>
+              <th style="width:120px;text-align:center;">יש מתכון?</th>
+              <th style="width:120px;text-align:center;">משקל ליחידה?</th>
+              <th style="width:220px;text-align:center;" class="no-print">פעולות</th>
+            </tr>
+          </thead>
+          <tbody id="parent-sku-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PAGE: SKU DATABASE -->
+    <div id="page-sku" style="display:none;">
+      <div class="page-header">
+        <div>
+          <div class="page-title">🗄️ מסד נתוני חו"ג (SKU)</div>
+          <div class="page-subtitle">כל חומרי הגלם לבניית מתכונים</div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <div class="search-wrap">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="sku-search" class="form-control search-input" placeholder="חפש חומר גלם..." oninput="renderSKUDb()" style="width:220px;">
+          </div>
+          <button class="btn btn-ghost btn-sm no-print" onclick="addSkuRow()">+ הוסף חומר גלם</button>
+        </div>
+      </div>
+      <div class="card" style="overflow:hidden;">
+        <table class="data-table" id="sku-table">
+          <thead>
+            <tr>
+              <th>שם רכיב</th>
+              <th style="width:150px;">SKU פנימי</th>
+              <th style="width:150px;">כמות באריזה</th>
+              <th style="width:100px;" class="no-print">פעולות</th>
+            </tr>
+          </thead>
+          <tbody id="sku-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PAGE: RATIO CALCULATOR -->
+    <div id="page-calc" style="display:none;">
+      <div class="page-header no-print">
+        <div>
+          <div class="page-title">⚖️ מחשבון יחסים</div>
+          <div class="page-subtitle">חשב כמה ק"ג דרוש מכל רכיב לפי גודל האצווה</div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <button class="btn btn-primary no-print" onclick="printCalc()">🖨️ הדפס / PDF</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;gap:20px;align-items:flex-end;flex-wrap:wrap;">
+          <div style="flex:1;min-width:200px;">
+            <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">בחר מתכון:</label>
+            <select id="calc-recipe-select" class="form-control" onchange="loadRecipeIntoCalc(this.value)" style="width:100%;">
+              <option value="">-- בחר מתכון --</option>
+            </select>
+          </div>
+          <div style="min-width:160px;">
+            <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">סה"כ ק"ג לאצווה:</label>
+            <input type="number" id="calc-total-kg" class="form-control" value="10" min="0.001" step="0.5" oninput="calcUpdateAll()" style="width:100%;font-size:18px;font-weight:700;text-align:center;">
+          </div>
+        </div>
+      </div>
+
+      <div id="calc-empty" style="text-align:center;padding:40px;color:var(--text-secondary);">
+        <div style="font-size:40px;margin-bottom:12px;">⚖️</div>
+        <div style="font-size:16px;font-weight:600;">בחר מתכון כדי להתחיל</div>
+      </div>
+
+      <div id="calc-results" style="display:none;">
+        <div id="calc-metrics" style="display:grid;gap:12px;margin-bottom:16px;"></div>
+
+        <div class="card" style="overflow:hidden;">
+          <table class="data-table" id="calc-table">
+            <thead>
+              <tr>
+                <th>שם רכיב</th>
+                <th style="width:120px;text-align:center;">יחס</th>
+                <th style="width:100px;text-align:center;">אחוז %</th>
+                <th style="width:140px;text-align:center;">כמות ק"ג</th>
+              </tr>
+            </thead>
+            <tbody id="calc-tbody"></tbody>
+            <tfoot>
+              <tr style="background:#f0fdf4;font-weight:700;">
+                <td>סה"כ</td>
+                <td id="calc-total-ratio" style="text-align:center;font-family:monospace;"></td>
+                <td style="text-align:center;">100%</td>
+                <td id="calc-total-kg-display" style="text-align:center;font-size:16px;color:#1e8e3e;"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end screen-content -->
+</div><!-- end main -->
+
+<!-- PRINT VIEW -->
+<div id="print-view"></div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+// ========== INITIAL DATA ==========
+const INITIAL_SKU_DB = [
+  {sku:"75050",name:"אבקת אפיה",qty:"1"},{sku:"75730",name:"אגוז מוסקט",qty:"1"},{sku:"75701",name:"אורגנו יבש",qty:"1"},
+  {sku:"75702",name:"בזיליקום יבש",qty:"0.5"},{sku:"73912",name:"ברוקולי קפוא פירורים",qty:"9"},{sku:"73911",name:"ברוקולי קפוא פרחים",qty:"10"},
+  {sku:"79296",name:"דפי לזניה גדול יבוא זיני 50*25",qty:"10"},{sku:"79297",name:"דפי לזניה קטן יבוא זיני 28*25",qty:"8"},
+  {sku:"79299",name:"דפי לזניה ריבוע יבוא זיני 9*9",qty:"5.4"},{sku:"77747",name:"זית שחור קלמטה מגולען",qty:"10"},
+  {sku:"79131",name:"טארטלט מרובע מלוח",qty:"240"},{sku:"76514",name:"יין לבן יבש 750 מ\"ל - חו\"ג",qty:"12"},
+  {sku:"73991",name:"כרובית קפואה פירורים",qty:"10"},{sku:"75510",name:"מלח גס 1 ק\"ג",qty:"12"},{sku:"75500",name:"מלח שולחן",qty:"25"},
+  {sku:"77142",name:"מרגרינה לפריך (12 ק\"ג)",qty:"12"},{sku:"77795",name:"מרק בטעם עוף 1540 פרווה",qty:"10"},{sku:"75100",name:"סוכר לבן",qty:"25"},
+  {sku:"77729",name:"עגבניות מרוסקות (פולפה) sica",qty:"4"},{sku:"77030",name:"פירורי לחם לבן",qty:"10"},{sku:"75600",name:"פלפל שחור",qty:"1"},
+  {sku:"77826",name:"ק\"ג רוטב צ'ילי מתוק גלון 6 ק\"ג",qty:"6"},{sku:"75060",name:"קורנפלור שק 25 ק\"ג",qty:"25"},{sku:"75040",name:"קמח חומוס",qty:"25"},
+  {sku:"75038",name:"קמח עדשים",qty:"25"},{sku:"75070",name:"קמח עמילן תפו\"א (שק 25 ק\"ג)",qty:"25"},{sku:"77027",name:"קפה עלית שחור 1 ק\"ג אדום",qty:"1"},
+  {sku:"77837",name:"קרם קוקוס מוסדי",qty:"12"},{sku:"75700",name:"רוזמרין יבש",qty:"1"},{sku:"7501",name:"שמן חמניות 5 ליטר",qty:"20"},
+  {sku:"74531",name:"שקד פרוס",qty:"10"},{sku:"73685",name:"תימין יבש",qty:"0.5"},{sku:"73900",name:"תרד טחון",qty:"10"},
+  {sku:"77752",name:"זית ירוק קצוץ - אירועים",qty:"5"},{sku:"77010",name:"חרדל דיז'ון גרגירים",qty:"5"},{sku:"77011",name:"חרדל חלק חו\"ג",qty:"1"},
+  {sku:"77001",name:"טחינה גולמית הנסיך 1 ק\"ג",qty:"1"},{sku:"77795",name:"מרק עוף דגש",qty:"10"},{sku:"75030",name:"עמילן טפיוקה",qty:"7"},
+  {sku:"6000",name:"שומשום לבן",qty:"25"},{sku:"6080",name:"שומשום שחור",qty:"1"}
+];
+
+const INITIAL_PARENT_SKU_DB = [
+  {sku:"36000",name:"קיש פטריות אישי",category:"קישים"},{sku:"36001",name:"קיש פטריות בינוני",category:"קישים"},
+  {sku:"360011",name:"קיש פטריות בינוני (תבנית עם מכסה)",category:"קישים"},{sku:"36002",name:"קיש פטריות גדול",category:"קישים"},
+  {sku:"36013",name:"קיש פטריות אישי \"ג'ו גורמה\"",category:"קישים"},{sku:"36100",name:"קיש בטטה אישי",category:"קישים"},
+  {sku:"36101",name:"קיש בטטה בינוני",category:"קישים"},{sku:"361011",name:"קיש בטטה בינוני (תבנית עם מכסה)",category:"קישים"},
+  {sku:"36102",name:"קיש בטטה גדול",category:"קישים"},{sku:"36113",name:"קיש בטטה אישי \"ג'ו גורמה\"",category:"קישים"},
+  {sku:"36200",name:"קיש תרד ומנגולד אישי",category:"קישים"},{sku:"36201",name:"קיש תרד ומנגולד בינוני",category:"קישים"},
+  {sku:"362011",name:"קיש תרד ומנגולד בינוני (תבנית עם מכסה)",category:"קישים"},{sku:"36202",name:"קיש תרד ומנגולד גדול",category:"קישים"},
+  {sku:"36300",name:"קיש בצל אישי",category:"קישים"},{sku:"36301",name:"קיש בצל בינוני",category:"קישים"},
+  {sku:"363011",name:"קיש בצל בינוני (תבנית עם מכסה)",category:"קישים"},{sku:"36302",name:"קיש בצל גדול",category:"קישים"},
+  {sku:"36313",name:"קיש בצל אישי \"ג'ו גורמה\"",category:"קישים"},{sku:"36400",name:"קיש ברוקולי אישי",category:"קישים"},
+  {sku:"36401",name:"קיש ברוקולי בינוני",category:"קישים"},{sku:"364011",name:"קיש ברוקולי בינוני (תבנית עם מכסה)",category:"קישים"},
+  {sku:"36402",name:"קיש ברוקולי גדול",category:"קישים"},{sku:"36500",name:"קיש שרי אישי",category:"קישים"},
+  {sku:"36501",name:"קיש שרי בינוני",category:"קישים"},{sku:"365011",name:"קיש שרי בינוני (תבנית עם מכסה)",category:"קישים"},
+  {sku:"36502",name:"קיש שרי גדול",category:"קישים"},{sku:"36600",name:"קיש אנטיפסטי אישי",category:"קישים"},
+  {sku:"36601",name:"קיש אנטיפסטי בינוני",category:"קישים"},{sku:"366011",name:"קיש אנטיפסטי בינוני (תבנית עם מכסה)",category:"קישים"},
+  {sku:"36602",name:"קיש אנטיפסטי גדול",category:"קישים"},{sku:"36700",name:"קיש גבינות וזיתים אישי",category:"קישים"},
+  {sku:"36701",name:"קיש גבינות וזיתים בינוני",category:"קישים"},{sku:"367011",name:"קיש גבינות וזיתים בינוני (תבנית עם מכסה)",category:"קישים"},
+  {sku:"36702",name:"קיש גבינות וזיתים גדול",category:"קישים"},{sku:"36850",name:"קיש זוקיני ומנצ'גו אישי",category:"קישים"},
+  {sku:"36851",name:"קיש זוקיני ומנצ'גו בינוני",category:"קישים"},{sku:"368511",name:"קיש זוקיני ומנצ'גו בינוני (תבנית עם מכסה)",category:"קישים"},
+  {sku:"36852",name:"קיש זוקיני ומנצ'גו גדול",category:"קישים"},{sku:"36040",name:"מיני קיש פטריות",category:"קישים"},
+  {sku:"36140",name:"מיני קיש בטטה",category:"קישים"},{sku:"36240",name:"מיני קיש תרד",category:"קישים"},
+  {sku:"36340",name:"מיני קיש בצל",category:"קישים"},{sku:"36540",name:"מיני קיש שרי",category:"קישים"},
+  {sku:"36027",name:"קיש פטריות אישי טבעוני ללא קמח",category:"קישים"},{sku:"36028",name:"קיש פטריות בינוני טבעוני ללא קמח",category:"קישים"},
+  {sku:"36127",name:"קיש בטטה אישי טבעוני ללא קמח",category:"קישים"},{sku:"36128",name:"קיש בטטה בינוני טבעוני ללא קמח",category:"קישים"},
+  {sku:"37110",name:"מיני קיש טבעוני ללא קמח בטטה יח'",category:"קישים"},{sku:"37111",name:"מיני קיש טבעוני ללא קמח בצל יח'",category:"קישים"},
+  {sku:"36011",name:"קיש פטריות אישי \"בן עמי\" ברקוד 40082",category:"קישים"},{sku:"36014",name:"קיש פטריות בינוני \"בן עמי\" ברקוד 40087",category:"קישים"},
+  {sku:"36109",name:"קיש בטטה אישי \"בן עמי\" ברקוד 40085",category:"קישים"},{sku:"36110",name:"קיש בטטה בינוני \"בן עמי\" ברקוד 40090",category:"קישים"},
+  {sku:"375101",name:"לזניה שמנת פטריות (פרוס 8)",category:"לזניות"},{sku:"375201",name:"לזניה תרד (פרוס 8)",category:"לזניות"},
+  {sku:"375501",name:"לזניה חצילים פארמה (פרוס 8)",category:"לזניות"},{sku:"37570",name:"לזניה קלאסית",category:"לזניות"},
+  {sku:"375701",name:"לזניה קלאסית (פרוס 8)",category:"לזניות"},{sku:"37600",name:"מיני לזניה קלאסית יח'",category:"לזניות"},
+  {sku:"37510",name:"לזניה שמנת פטריות",category:"לזניות"},{sku:"37511",name:"לזניה שמנת פטריות בינונית",category:"לזניות"},
+  {sku:"37520",name:"לזניה תרד",category:"לזניות"},{sku:"37521",name:"לזניה תרד בינונית",category:"לזניות"},
+  {sku:"37550",name:"לזניה חצילים פארמה",category:"לזניות"},{sku:"37551",name:"לזניה חצילים פארמה בינוני",category:"לזניות"},
+  {sku:"37575",name:"לזניה קלאסית בינונית",category:"לזניות"},{sku:"37125",name:"פשטידת עגולה פטריות ללא קמח בינונית",category:"פשטידות"},
+  {sku:"37129",name:"פשטידה עגולה בצל ללא קמח בינונית",category:"פשטידות"},{sku:"37126",name:"פשטידה עגולה ברוקולי ללא קמח בינונית",category:"פשטידות"},
+  {sku:"37128",name:"פשטידה עגולה כרובית ללא קמח בינונית",category:"פשטידות"},{sku:"36021",name:"מיני פשטידה פטריות יח'",category:"פשטידות"},
+  {sku:"36121",name:"מיני פשטידה בטטה יח'",category:"פשטידות"},{sku:"36321",name:"מיני פשטידה בצל יח'",category:"פשטידות"},
+  {sku:"36921",name:"מיני פשטידה תירס יח'",category:"פשטידות"},{sku:"47092",name:"לביבת זוקיני \"עלמה\"",category:"מיוחדים"},
+  {sku:"47089",name:"לביבת בטטה \"לנדוור\" יח' (36 יחידות)",category:"מיוחדים"},{sku:"39072",name:"קפוא ק\"ג כדורי גבינה וזיתים (1 ק\"ג)",category:"מיוחדים"},
+  {sku:"12934",name:"ספנקופיטה",category:"מיוחדים"},{sku:"12933",name:"ספנקופיטה אישי",category:"מיוחדים"}
+];
+
+let DATABASE = {
+  recipes: [],
+  skuDb: [],
+  parentSkuDb: []
+};
+
+function loadData() {
+  const saved = localStorage.getItem('biscotti-db');
+  if (saved) {
+    try { DATABASE = JSON.parse(saved); } catch(e) {}
+  }
+  if (!DATABASE.recipes) DATABASE.recipes = [];
+  if (!DATABASE.skuDb) DATABASE.skuDb = [];
+  if (!DATABASE.parentSkuDb) DATABASE.parentSkuDb = [];
+
+  // Merge initial raw materials (SKUs)
+  INITIAL_SKU_DB.forEach(item => {
+    let existing = DATABASE.skuDb.find(s => s.sku === item.sku || s.name === item.name);
+    if (!existing) {
+      DATABASE.skuDb.push(item);
+    } else if (!existing.qty && item.qty) {
+      existing.qty = item.qty; // update qty if missing
+    }
+  });
+
+  // Merge initial parent SKUs
+  INITIAL_PARENT_SKU_DB.forEach(item => {
+    if (!DATABASE.parentSkuDb.find(s => s.sku === item.sku)) {
+      DATABASE.parentSkuDb.push(item);
+    }
+  });
+}
+
+function saveData() {
+  localStorage.setItem('biscotti-db', JSON.stringify(DATABASE));
+}
+function forceSave() {
+  saveData();
+  toast('✅ נתונים נשמרו מקומית בהצלחה!');
+}
+
+let currentPage = 'new';
+let currentFilter = 'all';
+let currentRecipeId = null;
+let editingRecipeId = null;
+let ingredients = [];
+
+function showPage(page) {
+  document.querySelectorAll('[id^="page-"]').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+
+  currentPage = page;
+  document.getElementById('page-' + page).style.display = 'block';
+
+  const navEl = document.getElementById('nav-' + page);
+  if (navEl) navEl.classList.add('active');
+
+  if (page === 'archive') renderArchive();
+  if (page === 'sku') renderSKUDb();
+  if (page === 'parentSku') renderParentSKUDb();
+  if (page === 'calc') initCalcPage();
+}
+
+function setFilter(filter) {
+  currentFilter = filter;
+  document.querySelectorAll('.filter-item').forEach(el => el.classList.remove('active'));
+  document.getElementById('filter-' + filter).classList.add('active');
+  if (currentPage !== 'archive') showPage('archive');
+  else renderArchive();
+}
+
+function parseExcelSmart() {
+  const text = document.getElementById('paste-area').value.trim();
+  if (!text) return;
+
+  const lines = text.split('\n').filter(l => l.trim());
+  ingredients = [];
+
+  lines.forEach(line => {
+    const parts = line.split('\t');
+    if (parts.length < 2) return;
+    
+    // Ignore header row
+    const lineStr = line.toLowerCase();
+    if (lineStr.includes('מקט') || lineStr.includes('sku') || lineStr.includes('כמות') || lineStr.includes('שם')) return;
+
+    let sku = '', name = '', qty = '';
+
+    parts.forEach(p => {
+      let val = p.trim();
+      if (!val) return;
+      
+      const numVal = parseFloat(val.replace(/[^\d.-]/g, ''));
+      const isPureNumber = /^\d+(\.\d+)?$/.test(val);
+      
+      if (isPureNumber && !val.includes('.')) {
+        if (!sku) sku = val;
+        else if (!qty) qty = val; 
+      } else if (isPureNumber && val.includes('.')) {
+        qty = val;
+      } else {
+        name = val;
+      }
+    });
+
+    if (sku || name) {
+      ingredients.push({
+        sku: sku.replace(/\D/g, ''), // force number only
+        name: name,
+        qty: qty,
+        unit: 'ק"ג' // Hardcoded unit
+      });
+    }
+  });
+
+  renderIngredientsTable();
+  toast(`✅ זוהו ${ingredients.length} רכיבים מההדבקה`);
+}
+
+let showEnglishEdit = false;
+let printWithEnglish = false;
+
+function toggleEnglishEdit() {
+  showEnglishEdit = !showEnglishEdit;
+  const btn = document.getElementById('eng-toggle-new');
+  const label = document.getElementById('eng-toggle-new-label');
+  if (showEnglishEdit) {
+    btn.style.borderColor = '#1a73e8'; btn.style.background = '#e8f0fe'; btn.style.color = '#1a73e8';
+    label.textContent = 'מסתיר תרגום';
+  } else {
+    btn.style.borderColor = 'var(--border)'; btn.style.background = ''; btn.style.color = '';
+    label.textContent = 'הוסף תרגום';
+  }
+  renderIngredientsTable();
+}
+
+function renderIngredientsTable() {
+  const tbody = document.getElementById('ingredients-body');
+  document.getElementById('ingredient-count').textContent = ingredients.length;
+
+  document.getElementById('th-name-en').style.display = showEnglishEdit ? 'table-cell' : 'none';
+
+  if (ingredients.length === 0) {
+    tbody.innerHTML = '<tr id="empty-row"><td colspan="6" style="text-align:center;padding:30px;color:var(--text-secondary);font-size:14px;">הדבק נתונים מהאקסל למעלה, או לחץ "הוסף שורה"</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = ingredients.map((ing, i) => `
+    <tr>
+      <td style="position:relative;">
+        <input type="text" id="sku-input-${i}" value="${escHtml(ing.sku)}" oninput="this.value=this.value.replace(/\\D/g, ''); onSkuInput(${i}, this.value)" onblur="hideAutocomplete('sku-dd-${i}')" placeholder="מקט" autocomplete="off" class="form-control" style="font-family:monospace;padding:6px 10px;" onfocus="showAutocomplete(${i}, 'sku', this.value)">
+        <div id="sku-dd-${i}" class="autocomplete-dropdown"></div>
+      </td>
+      <td style="position:relative;">
+        <input type="text" id="name-input-${i}" value="${escHtml(ing.name)}" oninput="onNameInput(${i}, this.value)" onblur="hideAutocomplete('name-dd-${i}')" placeholder="שם רכיב" autocomplete="off" class="form-control" style="font-weight:600;padding:6px 10px;" onfocus="showAutocomplete(${i}, 'name', this.value)">
+        <div id="name-dd-${i}" class="autocomplete-dropdown" style="min-width:220px;"></div>
+      </td>
+      <td style="display:${showEnglishEdit ? 'table-cell' : 'none'}; position:relative;">
+        <input type="text" id="en-input-${i}" value="${escHtml(ing.nameEn||'')}" oninput="ingredients[${i}].nameEn=this.value; showEnAutocomplete(${i}, this.value)" onblur="hideAutocomplete('en-dd-${i}')" placeholder="English name" dir="ltr" autocomplete="off" class="form-control" style="padding:6px 10px;" onfocus="showEnAutocomplete(${i}, this.value)">
+        <div id="en-dd-${i}" class="autocomplete-dropdown" style="min-width:220px; text-align:left; direction:ltr;"></div>
+      </td>
+      <td><input type="text" value="${escHtml(ing.qty)}" oninput="ingredients[${i}].qty=this.value" placeholder="כמות" class="form-control" style="font-weight:700;text-align:center;padding:6px 10px;"></td>
+      <td style="color:var(--text-secondary); font-size:14px; text-align:center; font-weight:500;">ק"ג</td>
+      <td class="no-print" style="text-align:center;"><button onclick="removeIngredient(${i})" style="background:none;border:none;color:#d93025;cursor:pointer;font-size:16px;">✕</button></td>
+    </tr>
+  `).join('');
+}
+
+function addIngredientRow() {
+  ingredients.push({ name: '', nameEn: '', sku: '', qty: '', unit: 'ק"ג' });
+  renderIngredientsTable();
+}
+
+function removeIngredient(i) {
+  ingredients.splice(i, 1);
+  renderIngredientsTable();
+}
+
+function clearIngredients() {
+  ingredients = [];
+  document.getElementById('paste-area').value = '';
+  renderIngredientsTable();
+}
+
+function buildMatches(query, type) {
+  const q = query.toLowerCase().trim();
+  if (!q) return DATABASE.skuDb.slice(0, 12);
+  return DATABASE.skuDb.filter(s => 
+    (type === 'sku' && s.sku.includes(q)) || 
+    (type === 'name' && s.name.toLowerCase().includes(q))
+  ).slice(0, 12);
+}
+
+function showAutocomplete(i, type, val) {
+  const dd = document.getElementById(`${type}-dd-${i}`);
+  if (!dd) return;
+  const matches = buildMatches(val, type);
+  if (matches.length === 0) { dd.style.display = 'none'; return; }
+  
+  dd.innerHTML = matches.map(s => `
+    <div class="autocomplete-item" onmousedown="applySelection(${i}, '${escHtml(s.sku)}', '${escHtml(s.name)}')">
+      <span style="font-weight:600;">${escHtml(s.name)}</span>
+      <span style="font-family:monospace;color:var(--text-secondary);">${escHtml(s.sku)}</span>
+    </div>
+  `).join('');
+  dd.style.display = 'block';
+}
+
+function hideAutocomplete(id) {
+  setTimeout(() => { const dd = document.getElementById(id); if(dd) dd.style.display = 'none'; }, 150);
+}
+
+function onSkuInput(i, val) { ingredients[i].sku = val; showAutocomplete(i, 'sku', val); }
+function onNameInput(i, val) { ingredients[i].name = val; showAutocomplete(i, 'name', val); }
+function applySelection(i, sku, name) {
+  ingredients[i].sku = sku; ingredients[i].name = name;
+  document.getElementById(`sku-input-${i}`).value = sku;
+  document.getElementById(`name-input-${i}`).value = name;
+  hideAutocomplete(`sku-dd-${i}`); hideAutocomplete(`name-dd-${i}`);
+}
+
+function showEnAutocomplete(i, val) {
+  const dd = document.getElementById(`en-dd-${i}`);
+  if (!dd) return;
+  const q = val.toLowerCase().trim();
+  let dict = {};
+  DATABASE.recipes.forEach(r => {
+    (r.ingredients||[]).forEach(ing => {
+      if(ing.nameEn && ing.name) dict[ing.nameEn] = ing.nameEn;
+    });
+  });
+  let matches = Object.keys(dict);
+  if(q) matches = matches.filter(m => m.toLowerCase().includes(q));
+  matches = matches.slice(0, 10);
+  
+  if(matches.length === 0) { dd.style.display='none'; return; }
+  dd.innerHTML = matches.map(m => `
+    <div class="autocomplete-item" onmousedown="ingredients[${i}].nameEn='${escHtml(m)}'; document.getElementById('en-input-${i}').value='${escHtml(m)}';">
+      <span>${escHtml(m)}</span>
+    </div>
+  `).join('');
+  dd.style.display = 'block';
+}
+
+function showParentDropdown(inputId, val) {
+  const dd = document.getElementById(`dd-${inputId}`);
+  if(!dd) return;
+  const q = val.toLowerCase().trim();
+  let matches = DATABASE.parentSkuDb;
+  if(q) {
+    matches = matches.filter(p => p.name.toLowerCase().includes(q) || p.sku.includes(q));
+  }
+  matches = matches.slice(0, 12);
+  if(matches.length === 0) { dd.style.display='none'; return; }
+  
+  dd.innerHTML = matches.map(p => `
+    <div class="autocomplete-item" onmousedown="applyParentSelection('${escHtml(p.name)}', '${escHtml(p.sku)}', '${escHtml(p.category||'')}')">
+      <span style="font-weight:600;">${escHtml(p.name)}</span>
+      <span style="font-family:monospace;color:var(--text-secondary);">${escHtml(p.sku)}</span>
+    </div>
+  `).join('');
+  dd.style.display = 'block';
+}
+
+function hideParentDropdown(inputId) {
+  setTimeout(() => { const dd = document.getElementById(`dd-${inputId}`); if(dd) dd.style.display = 'none'; }, 150);
+}
+function applyParentSelection(name, sku, cat) {
+  document.getElementById('f-title').value = name;
+  document.getElementById('f-sku').value = sku;
+  if(cat) document.getElementById('f-category').value = cat;
+}
+
+function importFromJson() {
+  const jsonStr = prompt('הדבק כאן את קוד ה-JSON של המתכון:');
+  if(!jsonStr) return;
+  
+  try {
+    const data = JSON.parse(jsonStr);
+    document.getElementById('f-title').value = data.title || '';
+    document.getElementById('f-category').value = data.category || '';
+    document.getElementById('f-instructions').value = data.steps || '';
+    
+    if(data.items && Array.isArray(data.items)) {
+      ingredients = data.items.map(item => ({
+        sku: (item.sku || '').replace(/\D/g, ''),
+        name: item.description || '',
+        qty: item.quantity || '',
+        unit: 'ק"ג',
+        nameEn: ''
+      }));
+      renderIngredientsTable();
+    }
+    toast('✅ מתכון יובא בהצלחה מ-JSON');
+  } catch(e) {
+    alert('שגיאה בפענוח JSON. ודא שהקוד תקין.');
+  }
+}
+
+function saveRecipe() {
+  const title = document.getElementById('f-title').value.trim();
+  const titleEn = document.getElementById('f-title-en').value.trim();
+  const sku = document.getElementById('f-sku').value.trim();
+  const category = document.getElementById('f-category').value;
+  const unitWeight = document.getElementById('f-unit-weight').value.trim();
+  const instructions = document.getElementById('f-instructions').value.trim();
+
+  if (!title) { toast('⚠️ יש להזין שם מתכון', true); return; }
+  if (!category) { toast('⚠️ יש לבחור קטגוריה', true); return; }
+  if (ingredients.length === 0) { toast('⚠️ יש להוסיף לפחות רכיב אחד', true); return; }
+
+  const recipe = {
+    id: editingRecipeId || Date.now().toString(),
+    title, titleEn, sku, category, unitWeight, instructions,
+    ingredients: [...ingredients],
+    createdAt: editingRecipeId ? (DATABASE.recipes.find(r=>r.id===editingRecipeId)?.createdAt || Date.now()) : Date.now(),
+    updatedAt: Date.now()
+  };
+
+  if (editingRecipeId) {
+    const idx = DATABASE.recipes.findIndex(r => r.id === editingRecipeId);
+    if (idx !== -1) DATABASE.recipes[idx] = recipe;
+    toast('✅ המתכון עודכן בהצלחה');
+  } else {
+    DATABASE.recipes.push(recipe);
+    toast('✅ המתכון נשמר בהצלחה');
+  }
+
+  // Update SKUs DB
+  ingredients.forEach(ing => {
+    if (ing.sku && ing.name) {
+      let exist = DATABASE.skuDb.find(s => s.sku === ing.sku);
+      if(!exist) DATABASE.skuDb.push({ name: ing.name, sku: ing.sku, qty:'' });
+    }
+  });
+
+  // Update Parent SKU DB
+  if (sku && title && !DATABASE.parentSkuDb.find(p => p.sku === sku)) {
+    DATABASE.parentSkuDb.push({ sku: sku, name: title, category: category });
+  }
+
+  saveData();
+  editingRecipeId = null;
+  clearForm();
+  showPage('archive');
+}
+
+function clearForm() {
+  document.getElementById('f-title').value = '';
+  document.getElementById('f-title-en').value = '';
+  document.getElementById('f-sku').value = '';
+  document.getElementById('f-category').value = '';
+  document.getElementById('f-unit-weight').value = '';
+  document.getElementById('f-instructions').value = '';
+  ingredients = [];
+  editingRecipeId = null;
+  document.getElementById('paste-area').value = '';
+  renderIngredientsTable();
+}
+
+function renderArchive() {
+  const query = (document.getElementById('search-input')?.value || '').trim().toLowerCase();
+  const grid = document.getElementById('archive-grid');
+  if (!grid) return;
+
+  let list = DATABASE.recipes;
+  if (currentFilter !== 'all') list = list.filter(r => r.category === currentFilter);
+  if (query) list = list.filter(r => r.title.toLowerCase().includes(query) || (r.sku||'').includes(query));
+
+  document.getElementById('archive-subtitle').textContent = `${list.length} מתכונים — ${currentFilter === 'all' ? 'כל הקטגוריות' : currentFilter}`;
+
+  if (list.length === 0) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">📭</div><div class="empty-title">אין מתכונים</div></div>`;
+    return;
+  }
+
+  grid.innerHTML = list.slice().reverse().map(r => `
+    <div class="recipe-card" onclick="viewRecipe('${r.id}')">
+      <div class="recipe-card-title">${escHtml(r.title)}</div>
+      <div class="recipe-card-sku">${r.sku || '—'}</div>
+      <div class="recipe-card-meta">
+        <span class="badge ${getBadgeClass(r.category)}">${escHtml(r.category)}</span>
+        <span style="font-size:12px;color:var(--text-secondary);margin-right:auto;">${(r.ingredients||[]).length} רכיבים</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function viewRecipe(id) {
+  const recipe = DATABASE.recipes.find(r => r.id === id);
+  if (!recipe) return;
+  currentRecipeId = id;
+
+  document.getElementById('detail-title-header').textContent = recipe.title;
+  document.getElementById('detail-sku-header').textContent = recipe.sku || '';
+
+  const steps = (recipe.instructions || '').split('\n').filter(s => s.trim());
+  const weightHtml = recipe.unitWeight ? `<div style="font-size:13px; color:var(--text-secondary); border-right:1px solid #ccc; padding-right:10px; margin-right:10px;">⚖️ משקל ליחידה: <strong>${escHtml(recipe.unitWeight)}</strong></div>` : '';
+
+  const content = `
+    <div class="card" style="overflow:hidden;">
+      <div style="background:linear-gradient(135deg, #e8f0fe 0%, #f8f9fa 100%); padding:20px; border-bottom:1px solid var(--border); display:flex; align-items:center;">
+        <span class="badge ${getBadgeClass(recipe.category)}">${escHtml(recipe.category)}</span>
+        ${weightHtml}
+        <div style="margin-right:auto; font-size:12px; color:var(--text-secondary);">נוצר: ${new Date(recipe.createdAt).toLocaleDateString('he-IL')}</div>
+      </div>
+      <div style="padding:24px;">
+        <div style="font-size:16px;font-weight:700;margin-bottom:16px;">🥬 רכיבים <span class="count-badge">${recipe.ingredients?.length || 0}</span></div>
+        <table class="data-table" style="margin-bottom:24px;">
+          <thead><tr><th style="width:140px;">מקט</th><th>שם רכיב</th><th style="width:110px;">כמות</th><th style="width:130px;">יחידת מידה</th></tr></thead>
+          <tbody>
+            ${(recipe.ingredients||[]).map(ing => `
+              <tr>
+                <td style="font-family:monospace;font-size:13px;color:var(--text-secondary);">${escHtml(ing.sku)}</td>
+                <td style="font-weight:600;">${escHtml(ing.name)}</td>
+                <td style="font-weight:800;font-size:16px;color:var(--primary);text-align:center;">${escHtml(ing.qty)}</td>
+                <td style="color:var(--text-secondary);">ק"ג</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+
+        ${recipe.instructions ? `
+        <div style="font-size:16px;font-weight:700;margin-bottom:12px;">📝 הוראות הכנה</div>
+        ${steps.map((s,i) => `<div class="step-item"><div class="step-num">${i+1}</div><div style="font-size:14px;line-height:1.6;">${escHtml(s)}</div></div>`).join('')}
+        ` : ''}
+      </div>
+    </div>`;
+
+  document.getElementById('detail-content').innerHTML = content;
+  buildPrintView(recipe);
+  showPage('detail');
+}
+
+function toggleEnglish() {
+  printWithEnglish = !printWithEnglish;
+  const btn = document.getElementById('eng-toggle-btn');
+  const label = document.getElementById('eng-toggle-label');
+
+  if (printWithEnglish) {
+    btn.style.borderColor = '#1a73e8'; btn.style.background = '#e8f0fe'; btn.style.color = '#1a73e8';
+    label.textContent = 'עם תרגום 🇬🇧';
+  } else {
+    btn.style.borderColor = 'var(--border)'; btn.style.background = ''; btn.style.color = '';
+    label.textContent = 'ללא תרגום';
+  }
+
+  const recipe = DATABASE.recipes.find(r => r.id === currentRecipeId);
+  if (recipe) buildPrintView(recipe);
+  toast(printWithEnglish ? '🇬🇧 הדפסה/ייצוא עם תרגום לאנגלית' : '🇮🇱 הדפסה/ייצוא ללא תרגום');
+}
+
+function buildPrintView(recipe) {
+  const steps = (recipe.instructions || '').split('\n').filter(s => s.trim());
+  const count = (recipe.ingredients || []).length;
+  const withEn = printWithEnglish;
+  const hasInst = steps.length > 0;
+
+  // Dynamic font sizing to force single page fit
+  let ptName = 20, ptQty = 24, ptUnit = 16, ptPad = '3mm', ptTh = 14, ptInst = 12;
+  if (count > 8) { ptName = 16; ptQty = 20; ptUnit = 14; ptPad = '2mm'; ptTh = 12; ptInst = 11; }
+  if (count > 15) { ptName = 13; ptQty = 16; ptUnit = 11; ptPad = '1mm'; ptTh = 10; ptInst = 10; }
+  if (count > 22) { ptName = 11; ptQty = 13; ptUnit = 9;  ptPad = '0.5mm'; ptTh = 9; ptInst = 9; }
+  if (steps.length > 8) { ptInst -= 2; }
+
+  if (withEn) { ptName = Math.round(ptName * 0.8); ptQty = Math.round(ptQty * 0.9); }
+
+  const cssVars = `--pt-name:${ptName}pt;--pt-qty:${ptQty}pt;--pt-unit:${ptUnit}pt;--pt-pad:${ptPad};--pt-th:${ptTh}pt;--pt-inst:${ptInst}pt;`;
+
+  const titleBlock = withEn && recipe.titleEn
+    ? `<div class="print-title">${escHtml(recipe.title)} <span style="font-size:70%;color:#555;font-weight:500;">| ${escHtml(recipe.titleEn)}</span></div>`
+    : `<div class="print-title">${escHtml(recipe.title)}</div>`;
+
+  const nameHeader = withEn ? `<th>שם רכיב / Ingredient</th>` : `<th>שם רכיב</th>`;
+
+  const rows = (recipe.ingredients||[]).map(ing => {
+    const nameCell = withEn && ing.nameEn
+      ? `<td><div style="font-weight:700;">${escHtml(ing.name)}</div><div style="font-size:75%;color:#555;font-weight:400;direction:ltr;">${escHtml(ing.nameEn)}</div></td>`
+      : `<td>${escHtml(ing.name)}</td>`;
+    return `<tr>${nameCell}<td class="qty-col" style="text-align:center;">${escHtml(ing.qty)}</td><td class="unit-col">ק"ג</td></tr>`;
+  }).join('');
+
+  // Layout structure: full width table if no instructions
+  const tableWidth = hasInst ? '75%' : '100%';
+  const instBlock = hasInst ? `
+    <div class="print-instructions" style="width:25%;">
+      <div class="print-instructions-title">📝 הוראות הכנה</div>
+      ${steps.map((s,i) => `<div style="margin-bottom:2mm;"><strong style="font-size:90%;">${i+1}.</strong> <span class="print-instructions-text">${escHtml(s)}</span></div>`).join('')}
+    </div>` : '';
+  const tableBorder = hasInst ? 'border-left: 2px solid #000;' : '';
+
+  document.getElementById('print-view').innerHTML = `
+    <div class="print-layout" style="${cssVars}">
+      <div class="print-ingredients" style="width:${tableWidth}; ${tableBorder}">
+        ${titleBlock}
+        <div style="font-size:10pt;color:#555;margin-bottom:3mm;display:flex;gap:15px;">
+          <span>${escHtml(recipe.category)}</span>
+          <span>${count} רכיבים</span>
+          ${recipe.unitWeight ? `<span>משקל יחידה: <strong>${escHtml(recipe.unitWeight)}</strong></span>` : ''}
+        </div>
+        <table class="print-table">
+          <thead><tr>${nameHeader}<th style="width:18%;text-align:center;">כמות</th><th style="width:18%;">יחידת מידה</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      ${instBlock}
+    </div>`;
+}
+
+function exportRecipeToExcel() {
+  const recipe = DATABASE.recipes.find(r => r.id === currentRecipeId);
+  if (!recipe) return;
+  
+  try {
+    let csvRows = [];
+    const escapeCsv = (str) => `"${String(str || '').replace(/"/g, '""')}"`;
+
+    csvRows.push(['שם המתכון', escapeCsv(recipe.title)]);
+    if(printWithEnglish && recipe.titleEn) csvRows.push(['שם באנגלית', escapeCsv(recipe.titleEn)]);
+    csvRows.push(['מק"ט אב', escapeCsv(recipe.sku)]);
+    csvRows.push(['קטגוריה', escapeCsv(recipe.category)]);
+    if(recipe.unitWeight) csvRows.push(['משקל ליחידה', escapeCsv(recipe.unitWeight)]);
+    csvRows.push([]); // empty line
+    
+    // Headers
+    let headers = ['מק"ט', 'שם רכיב'];
+    if(printWithEnglish) headers.push('שם באנגלית');
+    headers.push('כמות', 'יחידת מידה');
+    csvRows.push(headers.map(escapeCsv).join(','));
+
+    // Ingredients
+    (recipe.ingredients || []).forEach(ing => {
+      let row = [ing.sku, ing.name];
+      if(printWithEnglish) row.push(ing.nameEn || '');
+      row.push(ing.qty, 'ק"ג');
+      csvRows.push(row.map(escapeCsv).join(','));
+    });
+
+    // Instructions
+    if (recipe.instructions) {
+      csvRows.push([]); csvRows.push([escapeCsv('הוראות הכנה')]);
+      recipe.instructions.split('\n').forEach((step, i) => {
+        if(step.trim()) csvRows.push([escapeCsv(`${i+1}. ${step.trim()}`)]);
+      });
+    }
+
+    const csvContent = "\uFEFF" + csvRows.join('\r\n'); // UTF-8 BOM
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `recipe_${recipe.title}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast('✅ קובץ אקסל נוצר בהצלחה');
+  } catch(e) {
+    console.error(e);
+    toast('❌ שגיאה ביצירת קובץ אקסל', true);
+  }
+}
+
+function downloadBackup() {
+  const fileName = prompt('בחר שם לקובץ הגיבוי:', `biscotti-backup-${new Date().toISOString().slice(0,10)}`);
+  if (!fileName) return;
+  
+  const dataStr = JSON.stringify(DATABASE);
+  const blob = new Blob([dataStr], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${fileName}.json`;
+  a.click();
+  toast('📥 קובץ גיבוי הורד בהצלחה');
+}
+
+function restoreBackup(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      if (!parsed.recipes || !parsed.skuDb) throw new Error("מבנה קובץ לא תקין");
+      
+      if (confirm('אזהרה: שחזור גיבוי ידרוס את הנתונים הקיימים במערכת! האם להמשיך?')) {
+        DATABASE = parsed;
+        if(!DATABASE.parentSkuDb) DATABASE.parentSkuDb = [];
+        saveData();
+        toast('📤 נתונים שוחזרו בהצלחה מגיבוי');
+        if(currentPage === 'archive') renderArchive();
+        if(currentPage === 'sku') renderSKUDb();
+        if(currentPage === 'parentSku') renderParentSKUDb();
+      }
+    } catch(err) {
+      toast('❌ שגיאה בקריאת קובץ הגיבוי', true);
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = ''; // Reset input
+}
+
+function exportDatabase() {
+  const dbJson = JSON.stringify(DATABASE);
+  const html = document.documentElement.outerHTML.replace(/let DATABASE = \{[\s\S]*?\};/, `let DATABASE = ${dbJson};`);
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `biscotti-system-${new Date().toISOString().slice(0,10)}.html`;
+  a.click();
+  toast('✅ קובץ HTML מלא הורד בהצלחה');
+}
+
+function renderParentSKUDb() {
+  const query = (document.getElementById('parent-sku-search')?.value || '').trim().toLowerCase();
+  const tbody = document.getElementById('parent-sku-body');
+  if (!tbody) return;
+
+  let list = DATABASE.parentSkuDb;
+  if (query) list = list.filter(p => p.name.toLowerCase().includes(query) || (p.sku||'').includes(query));
+
+  if (list.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-secondary);">לא נמצאו מוצרי אב</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = list.map((s, i) => {
+    const realIdx = DATABASE.parentSkuDb.indexOf(s);
+    
+    // Find latest linked recipe
+    const linkedRecipes = DATABASE.recipes.filter(r => (s.sku && r.sku === s.sku) || (s.name && r.title === s.name));
+    let linkedRecipe = null;
+    if (linkedRecipes.length > 0) {
+      linkedRecipe = linkedRecipes.reduce((latest, current) => (current.updatedAt || 0) > (latest.updatedAt || 0) ? current : latest);
+    }
+    
+    const hasRecipe = !!linkedRecipe;
+    const hasUnitWeight = hasRecipe && !!linkedRecipe.unitWeight;
+
+    const rBadge = hasRecipe ? `<span class="badge badge-meyuhadim">✅ יש</span>` : `<span class="badge badge-lazaniot">❌ אין</span>`;
+    const wBadge = hasUnitWeight ? `<span class="badge badge-meyuhadim">✅ יש</span>` : `<span class="badge badge-lazaniot">❌ אין</span>`;
+    
+    // Action button depends on state
+    let actionBtn = '';
+    if (hasRecipe) {
+      actionBtn = `<button onclick="editRecipeFromParent('${linkedRecipe.id}')" class="btn btn-sm btn-outline no-print" style="padding:6px 12px;font-size:13px;display:flex;align-items:center;gap:6px;min-width:120px;justify-content:center;"><span>✏️</span> עדכן מתכון</button>`;
+    } else {
+      actionBtn = `<button onclick="createNewRecipeFromParent('${escHtml(s.name)}', '${escHtml(s.sku)}', '${escHtml(s.category||'')}')" class="btn btn-sm btn-primary no-print" style="padding:6px 12px;font-size:13px;display:flex;align-items:center;gap:6px;min-width:120px;justify-content:center;"><span>➕</span> צור מתכון</button>`;
+    }
+
+    return `<tr class="sku-row">
+      <td><input type="text" value="${escHtml(s.name)}" onchange="DATABASE.parentSkuDb[${realIdx}].name=this.value;saveData(); renderParentSKUDb();" class="form-control" style="border:1px solid transparent;"></td>
+      <td><input type="text" value="${escHtml(s.sku)}" onchange="this.value=this.value.replace(/\\D/g, ''); DATABASE.parentSkuDb[${realIdx}].sku=this.value;saveData(); renderParentSKUDb();" class="form-control" style="font-family:monospace;border:1px solid transparent;"></td>
+      <td><input type="text" value="${escHtml(s.category||'')}" onchange="DATABASE.parentSkuDb[${realIdx}].category=this.value;saveData(); renderParentSKUDb();" class="form-control" style="border:1px solid transparent;"></td>
+      <td style="text-align:center; vertical-align:middle;">${rBadge}</td>
+      <td style="text-align:center; vertical-align:middle;">${wBadge}</td>
+      <td class="no-print" style="text-align:center; vertical-align:middle;">
+        <div style="display:flex; align-items:center; justify-content:center; gap:8px;">
+          ${actionBtn}
+          <button onclick="removeParentSku(${realIdx})" class="btn btn-sm btn-ghost" title="מחק מוצר אב" style="padding:6px; font-size:16px;">🗑️</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function addParentSkuRow() {
+  DATABASE.parentSkuDb.unshift({ name: '', sku: '', category: '' });
+  saveData(); renderParentSKUDb();
+}
+function removeParentSku(i) {
+  if(!confirm('למחוק מוצר אב זה?')) return;
+  DATABASE.parentSkuDb.splice(i, 1);
+  saveData(); renderParentSKUDb();
+}
+function editRecipeFromParent(id) {
+  currentRecipeId = id;
+  editCurrentRecipe();
+}
+
+function createNewRecipeFromParent(name, sku, category) {
+  clearForm();
+  document.getElementById('f-title').value = name;
+  document.getElementById('f-sku').value = sku;
+  if(category) document.getElementById('f-category').value = category;
+  showPage('new');
+}
+
+function editCurrentRecipe() {
+  const recipe = DATABASE.recipes.find(r => r.id === currentRecipeId);
+  if (!recipe) return;
+  editingRecipeId = recipe.id;
+
+  document.getElementById('f-title').value = recipe.title;
+  document.getElementById('f-title-en').value = recipe.titleEn || '';
+  document.getElementById('f-sku').value = recipe.sku || '';
+  document.getElementById('f-category').value = recipe.category;
+  document.getElementById('f-unit-weight').value = recipe.unitWeight || '';
+  document.getElementById('f-instructions').value = recipe.instructions || '';
+  ingredients = recipe.ingredients ? JSON.parse(JSON.stringify(recipe.ingredients)) : [];
+
+  renderIngredientsTable();
+  showPage('new');
+}
+
+function deleteCurrentRecipe() {
+  if (!confirm('האם למחוק את המתכון לצמיתות?')) return;
+  DATABASE.recipes = DATABASE.recipes.filter(r => r.id !== currentRecipeId);
+  saveData();
+  toast('🗑️ המתכון נמחק');
+  showPage('archive');
+}
+
+function renderSKUDb() {
+  const query = (document.getElementById('sku-search')?.value || '').trim().toLowerCase();
+  const tbody = document.getElementById('sku-body');
+  if (!tbody) return;
+
+  let list = DATABASE.skuDb;
+  if (query) list = list.filter(s => s.name.toLowerCase().includes(query) || s.sku.includes(query));
+
+  if (list.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text-secondary);">לא נמצאו תוצאות</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = list.map((s, i) => {
+    const realIdx = DATABASE.skuDb.indexOf(s);
+    return `<tr class="sku-row">
+      <td><input type="text" value="${escHtml(s.name)}" onchange="DATABASE.skuDb[${realIdx}].name=this.value;saveData();" class="form-control" style="border:1px solid transparent;"></td>
+      <td><input type="text" value="${escHtml(s.sku)}" onchange="this.value=this.value.replace(/\\D/g, ''); DATABASE.skuDb[${realIdx}].sku=this.value;saveData();" class="form-control" style="font-family:monospace;border:1px solid transparent;"></td>
+      <td><input type="text" value="${escHtml(s.qty||'')}" onchange="DATABASE.skuDb[${realIdx}].qty=this.value;saveData();" class="form-control" placeholder="לדוגמה: 25" style="border:1px solid transparent; text-align:center;"></td>
+      <td class="no-print" style="text-align:center;">
+        <button onclick="removeSku(${realIdx})" class="btn btn-sm" style="background:none;border:none;color:#d93025;cursor:pointer;">🗑️</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function addSkuRow() { DATABASE.skuDb.unshift({ name: '', sku: '', qty: '' }); saveData(); renderSKUDb(); }
+function removeSku(i) { DATABASE.skuDb.splice(i, 1); saveData(); renderSKUDb(); }
+
+function getBadgeClass(cat) {
+  const map = { 'לזניות': 'badge-lazaniot', 'מיוחדים': 'badge-meyuhadim', 'קישים': 'badge-kishim', 'פשטידות': 'badge-pashtidot' };
+  return map[cat] || 'badge-kishim';
+}
+function escHtml(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+let toastTimer;
+function toast(msg, isError = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.style.background = isError ? '#d93025' : '#323232';
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ─── מחשבון יחסים ─────────────────────────────────────────────────────────────
+
+let calcRecipeId = null;
+
+function initCalcPage() {
+  const sel = document.getElementById('calc-recipe-select');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">-- בחר מתכון --</option>';
+  DATABASE.recipes.forEach(r => {
+    const opt = document.createElement('option');
+    opt.value = r.id;
+    opt.textContent = r.title + (r.sku ? ' (' + r.sku + ')' : '');
+    sel.appendChild(opt);
+  });
+  if (calcRecipeId && DATABASE.recipes.find(r => r.id === calcRecipeId)) {
+    sel.value = calcRecipeId;
+    loadRecipeIntoCalc(calcRecipeId);
+  } else if (prev && DATABASE.recipes.find(r => r.id === prev)) {
+    sel.value = prev;
+    loadRecipeIntoCalc(prev);
+  }
+}
+
+function openInCalc(id) {
+  calcRecipeId = id;
+  showPage('calc');
+}
+
+function loadRecipeIntoCalc(id) {
+  calcRecipeId = id || null;
+  if (!id) {
+    document.getElementById('calc-empty').style.display = 'block';
+    document.getElementById('calc-results').style.display = 'none';
+    return;
+  }
+  const recipe = DATABASE.recipes.find(r => r.id === id);
+  if (!recipe) return;
+  document.getElementById('calc-empty').style.display = 'none';
+  document.getElementById('calc-results').style.display = 'block';
+  calcUpdateAll();
+}
+
+function calcUpdateAll() {
+  if (!calcRecipeId) return;
+  const recipe = DATABASE.recipes.find(r => r.id === calcRecipeId);
+  if (!recipe) return;
+
+  const totalKg = parseFloat(document.getElementById('calc-total-kg').value) || 0;
+  const valid = (recipe.ingredients || []).filter(ing => ing.name && parseFloat(ing.qty) > 0);
+  const totalRatio = valid.reduce((s, ing) => s + parseFloat(ing.qty), 0);
+
+  if (valid.length === 0 || totalRatio === 0) {
+    document.getElementById('calc-tbody').innerHTML =
+      '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-secondary);">אין רכיבים עם יחס חיובי</td></tr>';
+    return;
+  }
+
+  // Metrics (top 4)
+  const results = valid.map(ing => {
+    const ratio = parseFloat(ing.qty);
+    const pct = ratio / totalRatio * 100;
+    const kg = ratio / totalRatio * totalKg;
+    return { name: ing.name, ratio, pct, kg };
+  });
+
+  const metricsEl = document.getElementById('calc-metrics');
+  const top = results.slice(0, Math.min(4, results.length));
+  const cols = top.length;
+  metricsEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  metricsEl.innerHTML = top.map(r => `
+    <div class="card" style="padding:16px;text-align:center;border-top:3px solid var(--primary);">
+      <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(r.name)}</div>
+      <div style="font-size:26px;font-weight:800;color:var(--text);">${r.kg.toFixed(3)}</div>
+      <div style="font-size:13px;color:var(--text-secondary);">ק"ג &nbsp;·&nbsp; ${r.pct.toFixed(1)}%</div>
+    </div>`).join('');
+
+  // Table rows
+  document.getElementById('calc-tbody').innerHTML = results.map((r, i) => `
+    <tr style="background:${i%2===0?'#fff':'#f8f9fa'}">
+      <td style="font-weight:600;">${escHtml(r.name)}</td>
+      <td style="text-align:center;font-family:monospace;">${r.ratio % 1 === 0 ? r.ratio.toFixed(0) : r.ratio.toFixed(3)}</td>
+      <td style="text-align:center;">${r.pct.toFixed(2)}%</td>
+      <td style="text-align:center;font-weight:700;font-size:15px;color:var(--primary);">${r.kg.toFixed(3)} ק"ג</td>
+    </tr>`).join('');
+
+  document.getElementById('calc-total-ratio').textContent = totalRatio % 1 === 0 ? totalRatio.toFixed(0) : totalRatio.toFixed(3);
+  document.getElementById('calc-total-kg-display').textContent = totalKg.toFixed(3) + ' ק"ג';
+}
+
+function buildCalcPrintView() {
+  if (!calcRecipeId) return;
+  const recipe = DATABASE.recipes.find(r => r.id === calcRecipeId);
+  if (!recipe) return;
+
+  const totalKg = parseFloat(document.getElementById('calc-total-kg').value) || 0;
+  const valid = (recipe.ingredients || []).filter(ing => ing.name && parseFloat(ing.qty) > 0);
+  const totalRatio = valid.reduce((s, ing) => s + parseFloat(ing.qty), 0);
+  if (valid.length === 0 || totalRatio === 0) return;
+
+  const results = valid.map(ing => ({
+    name: ing.name,
+    ratio: parseFloat(ing.qty),
+    pct: parseFloat(ing.qty) / totalRatio * 100,
+    kg: parseFloat(ing.qty) / totalRatio * totalKg,
+  }));
+
+  const count = results.length;
+  const steps = (recipe.instructions || '').split('\n').filter(s => s.trim());
+  const hasInst = steps.length > 0;
+
+  let ptName = 20, ptQty = 24, ptUnit = 16, ptPad = '3mm', ptTh = 14, ptInst = 12;
+  if (count > 8) { ptName = 16; ptQty = 20; ptUnit = 14; ptPad = '2mm'; ptTh = 12; ptInst = 11; }
+  if (count > 15) { ptName = 13; ptQty = 16; ptUnit = 11; ptPad = '1mm'; ptTh = 10; ptInst = 10; }
+  if (count > 22) { ptName = 11; ptQty = 13; ptUnit = 9; ptPad = '0.5mm'; ptTh = 9; ptInst = 9; }
+
+  const cssVars = `--pt-name:${ptName}pt;--pt-qty:${ptQty}pt;--pt-unit:${ptUnit}pt;--pt-pad:${ptPad};--pt-th:${ptTh}pt;--pt-inst:${ptInst}pt;`;
+  const tableWidth = hasInst ? '75%' : '100%';
+  const tableBorder = hasInst ? 'border-left: 2px solid #000;' : '';
+
+  const rows = results.map(r =>
+    `<tr><td>${escHtml(r.name)}</td><td class="qty-col" style="text-align:center;">${r.kg.toFixed(3)}</td><td class="unit-col">ק"ג</td></tr>`
+  ).join('');
+
+  const instBlock = hasInst ? `
+    <div class="print-instructions" style="width:25%;">
+      <div class="print-instructions-title">📝 הוראות הכנה</div>
+      ${steps.map((s,i) => `<div style="margin-bottom:2mm;"><strong style="font-size:90%;">${i+1}.</strong> <span class="print-instructions-text">${escHtml(s)}</span></div>`).join('')}
+    </div>` : '';
+
+  const now = new Date();
+  const dateStr = now.getDate().toString().padStart(2,'0') + '/' + (now.getMonth()+1).toString().padStart(2,'0') + '/' + now.getFullYear();
+
+  document.getElementById('print-view').innerHTML = `
+    <div class="print-layout" style="${cssVars}">
+      <div class="print-ingredients" style="width:${tableWidth}; ${tableBorder}">
+        <div class="print-title">${escHtml(recipe.title)} <span style="font-size:55%;color:#555;font-weight:500;">— אצווה: ${totalKg.toFixed(3)} ק"ג</span></div>
+        <div style="font-size:10pt;color:#555;margin-bottom:3mm;display:flex;gap:15px;">
+          <span>${escHtml(recipe.category || '')}</span>
+          <span>${count} רכיבים</span>
+          <span>${dateStr}</span>
+        </div>
+        <table class="print-table">
+          <thead><tr><th>שם רכיב</th><th style="width:18%;text-align:center;">כמות</th><th style="width:18%;">יחידת מידה</th></tr></thead>
+          <tbody>${rows}</tbody>
+          <tfoot><tr style="background:#f0fdf4;"><td colspan="1" style="font-weight:800;">סה"כ</td><td style="text-align:center;font-weight:800;">${totalKg.toFixed(3)}</td><td>ק"ג</td></tr></tfoot>
+        </table>
+      </div>
+      ${instBlock}
+    </div>`;
+}
+
+function printCalc() {
+  if (!calcRecipeId) { toast('⚠️ בחר מתכון תחילה', true); return; }
+  buildCalcPrintView();
+  window.print();
+}
+
+// Init
+loadData();
+renderArchive();
+renderIngredientsTable();
+</script>
+</body>
+</html>
