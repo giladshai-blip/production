@@ -132,6 +132,7 @@ table.gantt th{
 table.gantt th.th-fixed{text-align:right}
 table.gantt th.th-today{background:var(--blue2)!important}
 .th-date{display:block;font-size:10px;font-weight:400;opacity:.78;margin-top:2px;letter-spacing:.2px}
+.th-friday-note{display:block;font-size:9px;font-weight:400;background:rgba(255,255,255,.18);border-radius:4px;padding:1px 4px;margin-top:3px;opacity:.9;white-space:nowrap}
 table.gantt td{padding:7px 10px;border:1px solid var(--border);vertical-align:middle}
 
 /* Category header rows */
@@ -439,7 +440,9 @@ function processWMS(rows, filename) {
         ? Math.max(0, max - stock)
         : Math.abs(n(r[col(C.DIFF_U)]));
       const toProduceBoxes = Math.round(toProduceUnits / upp);
-      const dayIdx = Math.min(Math.max(Math.floor(days), 0), 5);
+      // Friday rule: only מיני קיש / מיני פשטידה may be produced on Friday
+      const isFridayOk = /מיני\s*(קיש|פשטידה)/i.test(String(r[col(C.DESC)] || ''));
+      const dayIdx = Math.min(Math.max(Math.floor(days), 0), isFridayOk ? 5 : 4);
 
       const urgency = stock === 0 ? 'zero' : stock < min ? 'low' : 'plan';
 
@@ -574,10 +577,11 @@ function renderGantt() {
     ${DAYS_HE.map((d,i) => {
       const wd = window._weekDates;
       const dateLbl = wd ? `${wd[i].getDate()}/${wd[i].getMonth()+1}` : '';
+      const fridayNote = i === 5 ? `<span class="th-friday-note">מיני קיש/פשטידה</span>` : '';
       const todayTag = i === todayIdx
         ? `<span class="th-date">${dateLbl} ✦</span>`
         : `<span class="th-date">${dateLbl}</span>`;
-      return `<th class="${i===todayIdx?'th-today':''}" style="min-width:72px">${d}${todayTag}</th>`;
+      return `<th class="${i===todayIdx?'th-today':''}" style="min-width:72px">${d}${todayTag}${fridayNote}</th>`;
     }).join('')}
     <th style="min-width:65px">סה"כ אריזות</th>
     <th style="min-width:55px">עגלות</th>
