@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>תוכנית ייצור שבועית</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* ═══ VARIABLES ═══════════════════════════════════════════════════ */
+:root{
+  --bg:#f0f4f8; --surface:#fff; --surface2:#f7fafc;
+  --border:#dde3ec; --border2:#c8d1df;
+  --text:#1a2236; --text2:#5a6a85; --text3:#8fa0b8;
+  --blue:#1e4db7; --blue2:#2563eb; --blue-light:#dbeafe;
+  --red:#dc2626;   --red-light:#fee2e2;
+  --orange:#ea580c;--orange-light:#ffedd5;
+  --yellow:#d97706;--yellow-light:#fef3c7;
+  --green:#16a34a; --green-light:#dcfce7;
+  --purple:#7c3aed;
+  --header:#0f2557; --header2:#17336e;
+  --cat-bg:#dce8f8; --cat-text:#1e3a6e;
+  --radius:10px; --shadow:0 2px 12px rgba(15,37,87,.1);
+}
+
+/* ═══ RESET ═══════════════════════════════════════════════════════ */
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px}
+button{cursor:pointer;font-family:inherit}
+::-webkit-scrollbar{width:7px;height:7px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+
+/* ═══ SCREENS ═════════════════════════════════════════════════════ */
+.screen{display:none}.screen.active{display:block}
+
+/* ═══ UPLOAD SCREEN ══════════════════════════════════════════════ */
+#uploadScreen{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px}
+.upload-header{text-align:center;margin-bottom:40px}
+.upload-logo{width:70px;height:70px;background:linear-gradient(135deg,var(--blue),var(--purple));border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:36px;margin:0 auto 18px}
+.upload-title{font-size:28px;font-weight:700;color:var(--header);margin-bottom:8px}
+.upload-sub{font-size:15px;color:var(--text2)}
+
+.drop-zone{
+  width:520px;max-width:100%;background:var(--surface);
+  border:2.5px dashed var(--border2);border-radius:18px;
+  padding:48px 36px;text-align:center;cursor:pointer;
+  transition:all .25s;position:relative
+}
+.drop-zone:hover,.drop-zone.drag{border-color:var(--blue2);background:var(--blue-light)}
+.drop-zone.drag{transform:scale(1.02)}
+.drop-icon{font-size:48px;margin-bottom:16px;display:block}
+.drop-title{font-size:17px;font-weight:600;color:var(--text);margin-bottom:6px}
+.drop-sub{font-size:13px;color:var(--text2);line-height:1.6}
+.drop-btn{display:inline-block;margin-top:18px;background:var(--blue2);color:#fff;padding:10px 24px;border-radius:8px;font-size:13px;font-weight:600;transition:background .2s}
+.drop-zone:hover .drop-btn{background:var(--blue)}
+#fileInput{position:absolute;inset:0;opacity:0;cursor:pointer}
+
+.col-hint{margin-top:30px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 22px;width:520px;max-width:100%}
+.hint-title{font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px}
+.hint-cols{display:flex;flex-wrap:wrap;gap:6px}
+.hint-col{background:var(--blue-light);color:var(--blue);font-size:11px;padding:3px 8px;border-radius:5px;font-weight:500}
+.hint-col.req{background:var(--header);color:#fff}
+
+/* loading bar */
+.load-wrap{width:520px;max-width:100%;margin-top:24px;display:none}
+.load-bar{height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+.load-fill{height:100%;background:linear-gradient(90deg,var(--blue2),var(--purple));border-radius:2px;width:0;transition:width .4s}
+.load-msg{font-size:12px;color:var(--text2);text-align:center;margin-top:6px}
+
+/* ═══ PLAN SCREEN ════════════════════════════════════════════════ */
+#planScreen{display:none}
+
+/* Top bar */
+.topbar{background:var(--header);color:#fff;padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(15,37,87,.3)}
+.topbar-right{display:flex;align-items:center;gap:14px}
+.topbar-logo{display:flex;align-items:center;gap:10px}
+.topbar-logo span{font-size:20px}
+.topbar-name{font-size:15px;font-weight:700}
+.topbar-sub{font-size:11px;opacity:.6;margin-top:1px}
+.topbar-left{display:flex;align-items:center;gap:8px}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;font-size:12.5px;font-weight:600;border:none;transition:all .18s}
+.btn-white{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.2)}
+.btn-white:hover{background:rgba(255,255,255,.22)}
+.btn-primary{background:var(--blue2);color:#fff}
+.btn-primary:hover{background:var(--blue)}
+.btn-outline{background:var(--surface);color:var(--text);border:1px solid var(--border2)}
+.btn-outline:hover{border-color:var(--blue2);color:var(--blue2)}
+.btn-green{background:var(--green);color:#fff}
+.btn-green:hover{filter:brightness(.9)}
+.btn-sm{padding:5px 10px;font-size:11.5px}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* Content */
+.content{padding:20px 24px;max-width:1600px;margin:0 auto}
+
+/* Stats row */
+.stats-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;border-top:3px solid}
+.stat-card.s-blue{border-top-color:var(--blue2)}
+.stat-card.s-red{border-top-color:var(--red)}
+.stat-card.s-orange{border-top-color:var(--orange)}
+.stat-card.s-yellow{border-top-color:var(--yellow)}
+.stat-card.s-green{border-top-color:var(--green)}
+.stat-icon{font-size:20px;margin-bottom:6px}
+.stat-val{font-size:26px;font-weight:700;color:var(--text);line-height:1}
+.stat-label{font-size:11px;color:var(--text2);margin-top:4px;font-weight:500}
+.stat-sub{font-size:10px;color:var(--text3);margin-top:2px}
+
+/* Filters */
+.filters{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px}
+.filter-label{font-size:12px;font-weight:600;color:var(--text2);white-space:nowrap}
+select.fsel{background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:7px;padding:6px 10px;font-size:12px;outline:none;cursor:pointer}
+select.fsel:focus{border-color:var(--blue2)}
+.legend{display:flex;gap:14px;margin-right:auto;flex-wrap:wrap}
+.leg{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2)}
+.leg-dot{width:12px;height:12px;border-radius:3px;flex-shrink:0}
+
+/* Table wrapper */
+.tbl-outer{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+.tbl-scroll{overflow-x:auto}
+
+/* Gantt table */
+table.gantt{width:100%;border-collapse:collapse;min-width:900px;font-size:12.5px}
+table.gantt th{
+  background:var(--header);color:#fff;padding:9px 10px;
+  text-align:center;font-size:11.5px;font-weight:600;
+  white-space:nowrap;border:1px solid rgba(255,255,255,.08);
+  position:sticky;top:56px;z-index:50
+}
+table.gantt th.th-fixed{text-align:right}
+table.gantt th.th-today{background:var(--blue2)!important;position:relative}
+table.gantt th.th-today::after{content:'היום';position:absolute;bottom:2px;left:50%;transform:translateX(-50%);font-size:9px;opacity:.7}
+table.gantt td{padding:7px 10px;border:1px solid var(--border);vertical-align:middle}
+
+/* Category header rows */
+tr.cat-row td{
+  background:var(--cat-bg);color:var(--cat-text);
+  font-weight:700;font-size:12px;padding:7px 12px;
+  border-top:2px solid var(--blue);border-bottom:1px solid var(--border2)
+}
+
+/* Product rows */
+tr.row-zero   td{background:#fff0f0}
+tr.row-low    td{background:#fff8f0}
+tr.row-plan   td{background:#fffef0}
+tr.row-zero:hover td,tr.row-low:hover td,tr.row-plan:hover td{filter:brightness(.97)}
+
+/* Urgency indicators */
+.urg{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:12px}
+.urg-zero  {background:var(--red-light);   color:var(--red)   }
+.urg-low   {background:var(--orange-light);color:var(--orange)}
+.urg-plan  {background:var(--yellow-light);color:var(--yellow)}
+
+/* Day cells */
+.day-cell{text-align:center;font-weight:700;font-size:12.5px;min-width:60px}
+.day-active{background:#e8f4ff!important;border:2px solid var(--blue2)!important;border-radius:4px;padding:5px 8px!important}
+.day-today-col td:not(.td-fixed){background:rgba(37,99,235,.04)!important}
+
+/* Subtotal / total rows */
+tr.sub-row td{background:var(--green-light)!important;font-weight:700;color:var(--green);border-top:1px solid #a3e4b2}
+tr.grand-row td{background:var(--header)!important;color:#fff!important;font-weight:700;font-size:13px;border-top:3px solid var(--header2)}
+tr.grand-row .day-cell{font-size:13px}
+
+/* fixed cols */
+.td-sku{white-space:nowrap;color:var(--text2);font-size:11.5px;min-width:70px}
+.td-name{min-width:160px;max-width:220px}
+.td-name small{display:block;font-size:10.5px;color:var(--text3)}
+.td-cat{font-weight:600;font-size:12px}
+.td-num{text-align:center;font-size:12px}
+.td-days{text-align:center;font-size:12px}
+.badge-days{display:inline-block;background:var(--blue-light);color:var(--blue);padding:1px 6px;border-radius:10px;font-size:11px;font-weight:600}
+.badge-zero{background:var(--red-light);color:var(--red)}
+
+/* Empty state */
+.empty{text-align:center;padding:60px;color:var(--text2);font-size:14px}
+.empty-icon{font-size:48px;display:block;margin-bottom:12px}
+
+/* ═══ PRINT ══════════════════════════════════════════════════════ */
+@media print{
+  *{-webkit-print-color-adjust:exact!important;color-adjust:exact!important;print-color-adjust:exact!important}
+  body{background:#fff;font-size:9pt}
+  .topbar,.filters,.stats-row,.no-print{display:none!important}
+  .content{padding:0;max-width:100%}
+  .tbl-outer{box-shadow:none;border:none}
+  table.gantt{font-size:8.5pt;min-width:unset}
+  table.gantt th{top:0;font-size:8pt;padding:5px 6px;background:#0f2557!important}
+  td{padding:4px 6px!important}
+  tr.row-zero   td{background:#fff0f0!important}
+  tr.row-low    td{background:#fff8f0!important}
+  tr.row-plan   td{background:#fffef0!important}
+  tr.cat-row td {background:#dce8f8!important;color:#1e3a6e!important}
+  tr.sub-row td {background:#dcfce7!important;color:#16a34a!important}
+  tr.grand-row td{background:#0f2557!important;color:#fff!important}
+  .print-header{display:block!important}
+}
+.print-header{display:none;text-align:center;padding:8px 0 14px;border-bottom:2px solid #0f2557;margin-bottom:10px}
+.print-header h1{font-size:14pt;color:#0f2557}
+.print-header p{font-size:9pt;color:#555;margin-top:3px}
+
+/* ═══ TOAST ══════════════════════════════════════════════════════ */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);
+  background:var(--text);color:#fff;padding:10px 20px;border-radius:24px;font-size:13px;
+  z-index:999;transition:transform .3s;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.25)}
+.toast.show{transform:translateX(-50%) translateY(0)}
+
+/* ═══ ANIMATIONS ═════════════════════════════════════════════════ */
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.anim{animation:fadeIn .3s ease}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════
+     UPLOAD SCREEN
+══════════════════════════════════════════════════════════════ -->
+<div id="uploadScreen" class="screen active">
+  <div class="upload-header">
+    <div class="upload-logo">🏭</div>
+    <div class="upload-title">תוכנית ייצור שבועית</div>
+    <div class="upload-sub">העלה דוח WMS — קבל גנט שבועי מוכן להדפסה</div>
+  </div>
+
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" accept=".xlsx,.xls">
+    <span class="drop-icon">📂</span>
+    <div class="drop-title">גרור קובץ Excel לכאן</div>
+    <div class="drop-sub">
+      קובץ ייצוא WMS — דוח GAP / מלאי 0<br>
+      פורמטים: <strong>.xlsx</strong> / <strong>.xls</strong>
+    </div>
+    <span class="drop-btn">בחר קובץ</span>
+  </div>
+
+  <div class="col-hint">
+    <div class="hint-title">עמודות נדרשות בקובץ</div>
+    <div class="hint-cols">
+      <span class="hint-col req">משפחה</span>
+      <span class="hint-col req">תאור משפחה</span>
+      <span class="hint-col req">מק'ט</span>
+      <span class="hint-col req">תאור מוצר</span>
+      <span class="hint-col req">הפרש לייצור ביחידות</span>
+      <span class="hint-col">מלאי מרלוג ביח'</span>
+      <span class="hint-col">ימי מלאי</span>
+      <span class="hint-col">מלאי מינימום</span>
+      <span class="hint-col">מלאי מקסימום</span>
+      <span class="hint-col">כמות יח' באריזה</span>
+      <span class="hint-col">הפרש לייצור באריזות</span>
+    </div>
+  </div>
+
+  <div class="load-wrap" id="loadWrap">
+    <div class="load-bar"><div class="load-fill" id="loadFill"></div></div>
+    <div class="load-msg" id="loadMsg">קורא קובץ...</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     PLAN SCREEN
+══════════════════════════════════════════════════════════════ -->
+<div id="planScreen" class="screen">
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="topbar-right">
+      <div class="topbar-logo">
+        <span>🏭</span>
+        <div>
+          <div class="topbar-name">תוכנית ייצור שבועית</div>
+          <div class="topbar-sub" id="tbSub">—</div>
+        </div>
+      </div>
+    </div>
+    <div class="topbar-left">
+      <button class="btn btn-white btn-sm" onclick="reloadFile()">📂 קובץ חדש</button>
+      <button class="btn btn-white btn-sm no-print" onclick="window.print()">🖨️ הדפס</button>
+      <button class="btn btn-white btn-sm no-print" onclick="exportExcel()">📥 ייצוא Excel</button>
+    </div>
+  </div>
+
+  <!-- Print-only header -->
+  <div class="print-header" id="printHeader"></div>
+
+  <div class="content">
+
+    <!-- Stats -->
+    <div class="stats-row no-print" id="statsRow"></div>
+
+    <!-- Filters -->
+    <div class="filters no-print">
+      <span class="filter-label">סינון:</span>
+      <select class="fsel" id="fFam" onchange="renderGantt()">
+        <option value="">כל המשפחות</option>
+      </select>
+      <select class="fsel" id="fUrg" onchange="renderGantt()">
+        <option value="">כל רמות הדחיפות</option>
+        <option value="zero">🔴 מלאי אפס</option>
+        <option value="low">🟠 מתחת מינימום</option>
+        <option value="plan">🟡 תכנון</option>
+      </select>
+      <select class="fsel" id="fDay" onchange="renderGantt()">
+        <option value="">כל הימים</option>
+        <option value="0">ראשון</option>
+        <option value="1">שני</option>
+        <option value="2">שלישי</option>
+        <option value="3">רביעי</option>
+        <option value="4">חמישי</option>
+        <option value="5">שישי</option>
+      </select>
+      <div class="legend">
+        <div class="leg"><div class="leg-dot" style="background:#ffd5d5"></div>מלאי אפס (דחוף)</div>
+        <div class="leg"><div class="leg-dot" style="background:#ffecd5"></div>מתחת מינימום</div>
+        <div class="leg"><div class="leg-dot" style="background:#fffde5"></div>תכנון</div>
+      </div>
+    </div>
+
+    <!-- Gantt Table -->
+    <div class="tbl-outer">
+      <div class="tbl-scroll">
+        <div class="print-header-inline" id="printHeaderInline" style="display:none"></div>
+        <table class="gantt" id="ganttTable">
+          <thead id="ganttHead"></thead>
+          <tbody id="ganttBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   COLUMN CONSTANTS
+══════════════════════════════════════════════════════════════ */
+const C = {
+  FAM:    'משפחה',
+  FNAME:  'תאור משפחה',
+  SKU:    "מק'ט",
+  DESC:   'תאור מוצר',
+  STOCK:  "מלאי מרלוג ביח'",
+  MIN:    'מלאי מינימום',
+  MAX:    'מלאי מקסימום',
+  DIFF_U: 'הפרש לייצור ביחידות',
+  DIFF_B: 'הפרש לייצור באריזות',
+  DAYS:   'ימי מלאי',
+  UPP:    "כמות יח' באריזה",
+};
+const DAYS_HE = ['ראשון','שני','שלישי','רביעי','חמישי','שישי'];
+const UNITS_PER_CART = 10;
+
+let planData   = [];   // processed rows
+let rawFile    = null; // for export
+
+/* ══════════════════════════════════════════════════════════════
+   FILE HANDLING
+══════════════════════════════════════════════════════════════ */
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+['dragenter','dragover'].forEach(e => dropZone.addEventListener(e, ev => {
+  ev.preventDefault(); dropZone.classList.add('drag');
+}));
+['dragleave','drop'].forEach(e => dropZone.addEventListener(e, () =>
+  dropZone.classList.remove('drag')));
+
+dropZone.addEventListener('drop', ev => {
+  ev.preventDefault();
+  const f = ev.dataTransfer.files[0];
+  if (f) readFile(f);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) readFile(fileInput.files[0]);
+});
+
+function reloadFile() {
+  document.getElementById('planScreen').style.display = 'none';
+  document.getElementById('uploadScreen').classList.add('active');
+  fileInput.value = '';
+  planData = [];
+}
+
+function readFile(file) {
+  rawFile = file;
+  showLoad('קורא קובץ...',10);
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      showLoad('מפרסר נתונים...',40);
+      const wb = XLSX.read(e.target.result, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {defval:''});
+      showLoad('מעבד תוכנית ייצור...',70);
+      setTimeout(() => {
+        planData = processWMS(rows, file.name);
+        showLoad('בונה גנט שבועי...',90);
+        setTimeout(() => buildPlanScreen(), 300);
+      }, 100);
+    } catch(err) {
+      showToast('❌ שגיאה בקריאת הקובץ: ' + err.message);
+      hideLoad();
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function showLoad(msg, pct) {
+  const w = document.getElementById('loadWrap');
+  w.style.display = 'block';
+  document.getElementById('loadMsg').textContent = msg;
+  document.getElementById('loadFill').style.width = pct + '%';
+}
+function hideLoad() {
+  document.getElementById('loadWrap').style.display = 'none';
+}
+
+/* ══════════════════════════════════════════════════════════════
+   DATA PROCESSING
+══════════════════════════════════════════════════════════════ */
+function n(v) { return parseFloat(v) || 0; }
+
+function processWMS(rows, filename) {
+  // fuzzy column match (trim whitespace, normalize quotes)
+  const normalize = s => String(s).trim().replace(/[""״']/g,"'");
+  const colMap = {};
+  if (rows.length) {
+    Object.keys(rows[0]).forEach(k => { colMap[normalize(k)] = k; });
+  }
+  const col = name => colMap[normalize(name)] || name;
+
+  const items = rows
+    .filter(r => n(r[col(C.DIFF_U)]) < 0)
+    .map(r => {
+      const stock = n(r[col(C.STOCK)]);
+      const min   = n(r[col(C.MIN)]);
+      const max   = n(r[col(C.MAX)]);
+      const days  = n(r[col(C.DAYS)]);
+      const upp   = Math.max(1, n(r[col(C.UPP)]) || 1);
+
+      // max-stock policy: produce up to max
+      const toProduceUnits = max > 0
+        ? Math.max(0, max - stock)
+        : Math.abs(n(r[col(C.DIFF_U)]));
+      const toProduceBoxes = Math.round(toProduceUnits / upp);
+      const dayIdx = Math.min(Math.max(Math.floor(days), 0), 5);
+
+      const urgency = stock === 0 ? 'zero' : stock < min ? 'low' : 'plan';
+
+      return {
+        fam:    String(r[col(C.FAM)]  || '').trim(),
+        fname:  String(r[col(C.FNAME)]|| '').trim(),
+        sku:    String(r[col(C.SKU)]  || '').trim(),
+        desc:   String(r[col(C.DESC)] || '').trim(),
+        stock, min, max, days, upp,
+        toProduceUnits, toProduceBoxes,
+        carts: Math.floor(toProduceBoxes / UNITS_PER_CART),
+        dayIdx, urgency,
+      };
+    });
+
+  return items;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   BUILD PLAN SCREEN
+══════════════════════════════════════════════════════════════ */
+function buildPlanScreen() {
+  showLoad('מציג...',100);
+
+  const today = new Date();
+  const wd    = today.getDay(); // 0=Sun
+  const todayIdx = wd === 6 ? 0 : wd; // Sat→Sun
+  const dateStr  = today.toLocaleDateString('he-IL',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  const weekNum  = isoWeek(today);
+
+  // Store today index globally
+  window._todayIdx = todayIdx;
+
+  // Subheader
+  document.getElementById('tbSub').textContent =
+    `${dateStr}  |  שבוע ${weekNum}  |  ${planData.length} פריטים לייצור`;
+
+  // Print headers
+  const phtxt = `<h1>תוכנית ייצור שבועית — שבוע ${weekNum}</h1><p>${dateStr}   |   ${planData.length} פריטים</p>`;
+  document.getElementById('printHeader').innerHTML = phtxt;
+
+  // Populate family filter
+  const fams = [...new Set(planData.map(r => r.fname))].sort();
+  const fFam = document.getElementById('fFam');
+  fFam.innerHTML = '<option value="">כל המשפחות</option>' +
+    fams.map(f => `<option value="${f}">${f}</option>`).join('');
+
+  // Render stats + gantt
+  renderStats();
+  renderGantt();
+
+  // Switch screens
+  document.getElementById('uploadScreen').classList.remove('active');
+  const ps = document.getElementById('planScreen');
+  ps.style.display = 'block';
+  ps.classList.add('anim');
+  hideLoad();
+}
+
+/* ══════════════════════════════════════════════════════════════
+   STATS
+══════════════════════════════════════════════════════════════ */
+function renderStats() {
+  const total  = planData.length;
+  const zeros  = planData.filter(r => r.urgency === 'zero').length;
+  const lows   = planData.filter(r => r.urgency === 'low').length;
+  const totBox = planData.reduce((s,r) => s + r.toProduceBoxes, 0);
+  const totCar = Math.floor(totBox / UNITS_PER_CART);
+
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat-card s-blue">
+      <div class="stat-icon">📋</div>
+      <div class="stat-val">${total}</div>
+      <div class="stat-label">פריטים לייצור</div>
+    </div>
+    <div class="stat-card s-red">
+      <div class="stat-icon">🔴</div>
+      <div class="stat-val">${zeros}</div>
+      <div class="stat-label">מלאי אפס — דחוף</div>
+      <div class="stat-sub">${total?Math.round(zeros/total*100):0}% מכלל הפריטים</div>
+    </div>
+    <div class="stat-card s-orange">
+      <div class="stat-icon">🟠</div>
+      <div class="stat-val">${lows}</div>
+      <div class="stat-label">מתחת מינימום</div>
+    </div>
+    <div class="stat-card s-yellow">
+      <div class="stat-icon">📦</div>
+      <div class="stat-val">${totBox.toLocaleString('he-IL')}</div>
+      <div class="stat-label">סה"כ אריזות</div>
+    </div>
+    <div class="stat-card s-green">
+      <div class="stat-icon">🛒</div>
+      <div class="stat-val">${totCar.toLocaleString('he-IL')}</div>
+      <div class="stat-label">עגלות (×${UNITS_PER_CART})</div>
+    </div>`;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   GANTT RENDER
+══════════════════════════════════════════════════════════════ */
+function renderGantt() {
+  const todayIdx  = window._todayIdx ?? 0;
+  const fFam      = document.getElementById('fFam').value;
+  const fUrg      = document.getElementById('fUrg').value;
+  const fDay      = document.getElementById('fDay').value;
+
+  let rows = planData.filter(r =>
+    (!fFam || r.fname === fFam) &&
+    (!fUrg || r.urgency === fUrg) &&
+    (fDay === '' || r.dayIdx === +fDay)
+  );
+
+  /* ── HEADER ── */
+  document.getElementById('ganttHead').innerHTML = `<tr>
+    <th class="th-fixed" style="min-width:100px">משפחה</th>
+    <th class="th-fixed" style="min-width:70px">מק"ט</th>
+    <th class="th-fixed" style="min-width:160px">תאור מוצר</th>
+    <th style="min-width:65px">מלאי</th>
+    <th style="min-width:55px">ימי מלאי</th>
+    ${DAYS_HE.map((d,i) => `<th class="${i===todayIdx?'th-today':''}" style="min-width:68px">${d}</th>`).join('')}
+    <th style="min-width:65px">סה"כ אריזות</th>
+    <th style="min-width:55px">עגלות</th>
+  </tr>`;
+
+  if (!rows.length) {
+    document.getElementById('ganttBody').innerHTML =
+      `<tr><td colspan="11" class="empty"><span class="empty-icon">📭</span>אין פריטים התואמים לסינון</td></tr>`;
+    return;
+  }
+
+  /* ── BODY ── */
+  const groups = {};
+  rows.forEach(r => {
+    const k = r.fam + '|' + r.fname;
+    if (!groups[k]) groups[k] = {fam:r.fam, fname:r.fname, items:[], dayTotals:Array(6).fill(0), total:0};
+    groups[k].items.push(r);
+    groups[k].dayTotals[r.dayIdx] += r.toProduceBoxes;
+    groups[k].total += r.toProduceBoxes;
+  });
+
+  const grandDay = Array(6).fill(0);
+  let grandTotal = 0;
+  let html = '';
+
+  const urgClass = {zero:'row-zero',low:'row-low',plan:'row-plan'};
+  const urgBadge = u => `<span class="urg urg-${u}">${u==='zero'?'🔴 אפס':u==='low'?'🟠 נמוך':'🟡 תכנון'}</span>`;
+
+  Object.values(groups).sort((a,b) => a.fam.localeCompare(b.fam)).forEach(g => {
+    // Category header
+    html += `<tr class="cat-row"><td colspan="11">◆ &nbsp;${escH(g.fname)}&nbsp; <span style="font-weight:400;font-size:11px;opacity:.7">(${escH(g.fam)})</span>
+      &nbsp;—&nbsp; <span style="font-size:11px">${g.items.length} פריטים</span></td></tr>`;
+
+    // Product rows
+    g.items
+      .sort((a,b) => (a.dayIdx - b.dayIdx) || (b.toProduceBoxes - a.toProduceBoxes))
+      .forEach(r => {
+        const dayCells = DAYS_HE.map((_,d) => {
+          if (d !== r.dayIdx) return `<td class="day-cell ${d===todayIdx?'day-today-col-marker':''}"></td>`;
+          const cls = d === todayIdx ? 'day-cell day-active' : 'day-cell';
+          return `<td class="${cls}">${r.toProduceBoxes.toLocaleString('he-IL')}</td>`;
+        }).join('');
+
+        const daysDisplay = r.days < 1
+          ? `<span class="badge-days badge-zero">0</span>`
+          : `<span class="badge-days">${r.days.toFixed(1)}</span>`;
+
+        html += `<tr class="${urgClass[r.urgency]}">
+          <td class="td-cat td-fixed">${escH(r.fname)}</td>
+          <td class="td-sku td-fixed">${escH(r.sku)}</td>
+          <td class="td-name td-fixed">${escH(r.desc)}</td>
+          <td class="td-num">${r.stock.toLocaleString('he-IL')}</td>
+          <td class="td-days">${daysDisplay}</td>
+          ${dayCells}
+          <td class="td-num" style="font-weight:600">${r.toProduceBoxes.toLocaleString('he-IL')}</td>
+          <td class="td-num">${r.carts}</td>
+        </tr>`;
+      });
+
+    // Family subtotal
+    const subDays = g.dayTotals.map((v,d) => {
+      const cls = d === todayIdx ? 'day-cell day-active' : 'day-cell';
+      return `<td class="${cls}">${v > 0 ? v.toLocaleString('he-IL') : ''}</td>`;
+    }).join('');
+    const subCarts = Math.floor(g.total / UNITS_PER_CART);
+    html += `<tr class="sub-row">
+      <td colspan="5" style="text-align:right;padding:7px 12px">סה"כ ${escH(g.fname)}</td>
+      ${subDays}
+      <td class="td-num">${g.total.toLocaleString('he-IL')}</td>
+      <td class="td-num">${subCarts}</td>
+    </tr>`;
+
+    g.dayTotals.forEach((v,d) => { grandDay[d] += v; });
+    grandTotal += g.total;
+  });
+
+  // Grand total
+  const grandDayCells = grandDay.map((v,d) => {
+    const cls = d === todayIdx ? 'day-cell day-active' : 'day-cell';
+    return `<td class="${cls}">${v > 0 ? v.toLocaleString('he-IL') : ''}</td>`;
+  }).join('');
+  const grandCarts = Math.floor(grandTotal / UNITS_PER_CART);
+  html += `<tr class="grand-row">
+    <td colspan="5" style="text-align:right;padding:10px 14px;font-size:13px">✦ &nbsp;סה"כ כולל</td>
+    ${grandDayCells}
+    <td class="day-cell">${grandTotal.toLocaleString('he-IL')}</td>
+    <td class="day-cell">${grandCarts}</td>
+  </tr>`;
+
+  document.getElementById('ganttBody').innerHTML = html;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   EXPORT EXCEL  (via SheetJS)
+══════════════════════════════════════════════════════════════ */
+function exportExcel() {
+  if (!planData.length) { showToast('אין נתונים לייצוא'); return; }
+
+  const todayIdx = window._todayIdx ?? 0;
+  const wb = XLSX.utils.book_new();
+
+  // Build rows array
+  const aoa = [];
+
+  // Title
+  const today = new Date();
+  const weekNum = isoWeek(today);
+  aoa.push([`תוכנית ייצור שבועית — שבוע ${weekNum} — ${today.toLocaleDateString('he-IL')}`,...Array(10).fill('')]);
+  aoa.push(['משפחה','מק"ט','תאור מוצר','מלאי','ימי מלאי',...DAYS_HE,'סה"כ אריזות','עגלות']);
+
+  const groups = {};
+  planData.forEach(r => {
+    const k = r.fam + '|' + r.fname;
+    if (!groups[k]) groups[k] = {fname:r.fname,fam:r.fam,items:[],dayTotals:Array(6).fill(0),total:0};
+    groups[k].items.push(r);
+    groups[k].dayTotals[r.dayIdx] += r.toProduceBoxes;
+    groups[k].total += r.toProduceBoxes;
+  });
+
+  const grandDay = Array(6).fill(0);
+  let grandTotal = 0;
+
+  Object.values(groups).sort((a,b) => a.fam.localeCompare(b.fam)).forEach(g => {
+    aoa.push([`◆ ${g.fname} (${g.fam})`,...Array(10).fill('')]);
+    g.items.sort((a,b) => a.dayIdx - b.dayIdx).forEach(r => {
+      const days = Array(6).fill('');
+      days[r.dayIdx] = r.toProduceBoxes;
+      aoa.push([r.fname, r.sku, r.desc, r.stock, r.days.toFixed(1), ...days, r.toProduceBoxes, r.carts]);
+    });
+    aoa.push([`סה"כ ${g.fname}`,'','','','',...g.dayTotals.map(v=>v||''), g.total, Math.floor(g.total/UNITS_PER_CART)]);
+    g.dayTotals.forEach((v,d) => { grandDay[d] += v; });
+    grandTotal += g.total;
+  });
+
+  aoa.push(['סה"כ כולל','','','','',...grandDay.map(v=>v||''), grandTotal, Math.floor(grandTotal/UNITS_PER_CART)]);
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+  // Column widths
+  ws['!cols'] = [22,10,32,10,10,...Array(6).fill(10),12,10].map(w=>({wch:w}));
+
+  XLSX.utils.book_append_sheet(wb, ws, 'תוכנית ייצור');
+  XLSX.writeFile(wb, `gantt_week${isoWeek(new Date())}.xlsx`);
+  showToast('✅ קובץ Excel יוצא בהצלחה');
+}
+
+/* ══════════════════════════════════════════════════════════════
+   HELPERS
+══════════════════════════════════════════════════════════════ */
+function escH(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function isoWeek(d) {
+  const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7));
+  const y = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+  return Math.ceil(((tmp - y) / 86400000 + 1) / 7);
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3200);
+}
+</script>
+</body>
+</html>
