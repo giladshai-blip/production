@@ -130,8 +130,8 @@ table.gantt th{
   position:sticky;top:56px;z-index:50
 }
 table.gantt th.th-fixed{text-align:right}
-table.gantt th.th-today{background:var(--blue2)!important;position:relative}
-table.gantt th.th-today::after{content:'היום';position:absolute;bottom:2px;left:50%;transform:translateX(-50%);font-size:9px;opacity:.7}
+table.gantt th.th-today{background:var(--blue2)!important}
+.th-date{display:block;font-size:10px;font-weight:400;opacity:.78;margin-top:2px;letter-spacing:.2px}
 table.gantt td{padding:7px 10px;border:1px solid var(--border);vertical-align:middle}
 
 /* Category header rows */
@@ -301,12 +301,6 @@ tr.grand-row .day-cell{font-size:13px}
       </select>
       <select class="fsel" id="fDay" onchange="renderGantt()">
         <option value="">כל הימים</option>
-        <option value="0">ראשון</option>
-        <option value="1">שני</option>
-        <option value="2">שלישי</option>
-        <option value="3">רביעי</option>
-        <option value="4">חמישי</option>
-        <option value="5">שישי</option>
       </select>
       <div class="legend">
         <div class="leg"><div class="leg-dot" style="background:#ffd5d5"></div>מלאי אפס (דחוף)</div>
@@ -476,8 +470,19 @@ function buildPlanScreen() {
   const dateStr  = today.toLocaleDateString('he-IL',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
   const weekNum  = isoWeek(today);
 
-  // Store today index globally
-  window._todayIdx = todayIdx;
+  // Compute Sun–Fri dates for this week
+  const weekDates = getWeekDates(today);
+  window._todayIdx  = todayIdx;
+  window._weekDates = weekDates;
+
+  // Populate day filter with actual dates
+  document.getElementById('fDay').innerHTML =
+    '<option value="">כל הימים</option>' +
+    DAYS_HE.map((d, i) => {
+      const dt = weekDates[i];
+      const label = `${d}  ${dt.getDate()}/${dt.getMonth()+1}`;
+      return `<option value="${i}">${label}</option>`;
+    }).join('');
 
   // Subheader
   document.getElementById('tbSub').textContent =
@@ -566,7 +571,14 @@ function renderGantt() {
     <th class="th-fixed" style="min-width:160px">תאור מוצר</th>
     <th style="min-width:65px">מלאי</th>
     <th style="min-width:55px">ימי מלאי</th>
-    ${DAYS_HE.map((d,i) => `<th class="${i===todayIdx?'th-today':''}" style="min-width:68px">${d}</th>`).join('')}
+    ${DAYS_HE.map((d,i) => {
+      const wd = window._weekDates;
+      const dateLbl = wd ? `${wd[i].getDate()}/${wd[i].getMonth()+1}` : '';
+      const todayTag = i === todayIdx
+        ? `<span class="th-date">${dateLbl} ✦</span>`
+        : `<span class="th-date">${dateLbl}</span>`;
+      return `<th class="${i===todayIdx?'th-today':''}" style="min-width:72px">${d}${todayTag}</th>`;
+    }).join('')}
     <th style="min-width:65px">סה"כ אריזות</th>
     <th style="min-width:55px">עגלות</th>
   </tr>`;
@@ -674,7 +686,9 @@ function exportExcel() {
   const today = new Date();
   const weekNum = isoWeek(today);
   aoa.push([`תוכנית ייצור שבועית — שבוע ${weekNum} — ${today.toLocaleDateString('he-IL')}`,...Array(10).fill('')]);
-  aoa.push(['משפחה','מק"ט','תאור מוצר','מלאי','ימי מלאי',...DAYS_HE,'סה"כ אריזות','עגלות']);
+  const wd = window._weekDates;
+  const dayHeaders = DAYS_HE.map((d,i) => wd ? `${d} ${wd[i].getDate()}/${wd[i].getMonth()+1}` : d);
+  aoa.push(['משפחה','מק"ט','תאור מוצר','מלאי','ימי מלאי',...dayHeaders,'סה"כ אריזות','עגלות']);
 
   const groups = {};
   planData.forEach(r => {
@@ -717,6 +731,16 @@ function exportExcel() {
 ══════════════════════════════════════════════════════════════ */
 function escH(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function getWeekDates(d) {
+  const sunday = new Date(d);
+  sunday.setDate(d.getDate() - d.getDay()); // rewind to Sunday
+  return Array.from({length: 6}, (_, i) => {
+    const dt = new Date(sunday);
+    dt.setDate(sunday.getDate() + i);
+    return dt;
+  });
 }
 
 function isoWeek(d) {
