@@ -329,7 +329,8 @@ tr.grand-row .day-cell{font-size:13px}
       <button class="btn btn-white btn-sm" onclick="reloadFile()">📂 קובץ חדש</button>
       <button class="btn btn-white btn-sm no-print" id="archiveBtn" style="display:none" onclick="openArchive()">🗄️ ארכיון</button>
       <button class="btn btn-white btn-sm no-print" onclick="window.print()">🖨️ הדפס</button>
-      <button class="btn btn-green btn-sm no-print" onclick="exportExcel()">💾 שמור קובץ</button>
+      <button class="btn btn-white btn-sm no-print" onclick="saveHtmlFile()" title="שמור את כל התוכנית כקובץ HTML — ניתן לפתוח מחדש ללא WMS">💾 שמור HTML</button>
+      <button class="btn btn-green btn-sm no-print" onclick="exportExcel()">📥 ייצוא Excel</button>
       <button class="btn btn-green btn-sm no-print" onclick="openAddModal()">＋ הוסף פריט</button>
     </div>
   </div>
@@ -1117,6 +1118,45 @@ function permDeleteItem(i) {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { closeModal(); closeArchive(); }
 });
+
+/* ══════════════════════════════════════════════════════════════
+   SAVE / RESTORE HTML
+══════════════════════════════════════════════════════════════ */
+function saveHtmlFile() {
+  if (!planData.length) { showToast('אין נתונים לשמירה — טען קובץ WMS קודם'); return; }
+
+  // Embed current state so the file auto-restores when reopened
+  const state = JSON.stringify({ planData, archiveData });
+  const stateTag = `<script id="__ps__">window.__ps__=${state};<\/script>`;
+
+  let html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+  // Remove any previous embedded state
+  html = html.replace(/<script id="__ps__">[\s\S]*?<\/script>\s*/g, '');
+  // Inject just before </head>
+  html = html.replace('</head>', stateTag + '\n</head>');
+
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  const d    = new Date();
+  a.download = `תוכנית-ייצור-${d.getDate()}-${d.getMonth()+1}-${d.getFullYear()}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+  showToast('✅ קובץ HTML נשמר — ניתן לפתוח ישירות בדפדפן');
+}
+
+// Auto-restore saved state (runs when opening a previously saved HTML file)
+if (window.__ps__ && Array.isArray(window.__ps__.planData) && window.__ps__.planData.length) {
+  planData    = window.__ps__.planData;
+  archiveData = window.__ps__.archiveData || [];
+  applyQuicheCapacity(planData);
+  updateArchiveBtn();
+  // Defer to let DOM finish loading
+  setTimeout(() => buildPlanScreen(), 0);
+}
 
 /* ══════════════════════════════════════════════════════════════
    QUICHE CAPACITY  (13 carts / day)
