@@ -118,8 +118,8 @@ select.fsel:focus{border-color:var(--blue2)}
 .leg-dot{width:12px;height:12px;border-radius:3px;flex-shrink:0}
 
 /* Table wrapper */
-.tbl-outer{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
-.tbl-scroll{overflow-x:auto}
+.tbl-outer{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:auto;max-height:calc(100vh - 195px);min-height:300px}
+.tbl-scroll{}
 
 /* Gantt table */
 table.gantt{width:100%;border-collapse:collapse;min-width:900px;font-size:12.5px}
@@ -127,7 +127,7 @@ table.gantt th{
   background:var(--header);color:#fff;padding:9px 10px;
   text-align:center;font-size:11.5px;font-weight:600;
   white-space:nowrap;border:1px solid rgba(255,255,255,.08);
-  position:sticky;top:56px;z-index:50
+  position:sticky;top:0;z-index:50
 }
 table.gantt th.th-fixed{text-align:right}
 table.gantt th.th-today{background:var(--blue2)!important}
@@ -240,6 +240,27 @@ tr.grand-row .day-cell{font-size:13px}
 .archive-info-name{font-size:13px;font-weight:600;color:var(--text)}
 .archive-info-sub{font-size:11px;color:var(--text2);margin-top:2px}
 .archive-empty{text-align:center;color:var(--text2);padding:40px;font-size:14px}
+
+/* ═══ CAPACITY BAR ════════════════════════════════════════════════ */
+.cap-bar-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:11px 16px;margin-bottom:12px}
+.cap-bar-title{font-size:11.5px;font-weight:700;color:var(--text2);margin-bottom:9px;display:flex;align-items:center;gap:8px}
+.cap-days{display:flex;gap:12px;flex-wrap:wrap}
+.cap-day{flex:1;min-width:90px}
+.cap-day-label{font-size:11px;color:var(--text2);margin-bottom:4px;display:flex;justify-content:space-between;align-items:center}
+.cap-track{height:7px;background:var(--border);border-radius:4px;overflow:hidden}
+.cap-fill{height:100%;border-radius:4px;transition:width .35s}
+.cap-fill-ok{background:var(--green)}
+.cap-fill-warn{background:var(--orange)}
+.cap-fill-over{background:var(--red)}
+.cap-badge{font-size:10px;cursor:help;line-height:1;vertical-align:middle}
+/* ═══ MIN/MAX COLS ════════════════════════════════════════════════ */
+.td-minmax{text-align:center;font-size:11px;color:var(--text2);min-width:60px}
+.td-minmax span{display:block;line-height:1.5}
+.td-minmax .mm-boxes{color:var(--text3);font-size:10px}
+/* ═══ WEEK TOGGLE ═════════════════════════════════════════════════ */
+.week-toggle{display:inline-flex;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;overflow:hidden}
+.week-toggle button{background:none;border:none;padding:5px 12px;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;transition:all .15s}
+.week-toggle button.active{background:var(--blue2);color:#fff}
 </style>
 </head>
 <body>
@@ -308,7 +329,7 @@ tr.grand-row .day-cell{font-size:13px}
       <button class="btn btn-white btn-sm" onclick="reloadFile()">📂 קובץ חדש</button>
       <button class="btn btn-white btn-sm no-print" id="archiveBtn" style="display:none" onclick="openArchive()">🗄️ ארכיון</button>
       <button class="btn btn-white btn-sm no-print" onclick="window.print()">🖨️ הדפס</button>
-      <button class="btn btn-white btn-sm no-print" onclick="exportExcel()">📥 ייצוא Excel</button>
+      <button class="btn btn-white btn-sm no-print" onclick="exportExcel()">💾 שמור Excel</button>
       <button class="btn btn-green btn-sm no-print" onclick="openAddModal()">＋ הוסף פריט</button>
     </div>
   </div>
@@ -321,8 +342,15 @@ tr.grand-row .day-cell{font-size:13px}
     <!-- Stats -->
     <div class="stats-row no-print" id="statsRow"></div>
 
+    <!-- Quiche capacity bar -->
+    <div id="capacityBar" class="no-print"></div>
+
     <!-- Filters -->
     <div class="filters no-print">
+      <div class="week-toggle">
+        <button id="btnWeekCur" class="active" onclick="setWeekMode('current')">שבוע זה</button>
+        <button id="btnWeekNxt" onclick="setWeekMode('next')">שבוע הבא ›</button>
+      </div>
       <span class="filter-label">סינון:</span>
       <select class="fsel" id="fFam" onchange="renderGantt()">
         <option value="">כל המשפחות</option>
@@ -448,7 +476,8 @@ const C = {
   UPP:    "כמות יח' באריזה",
 };
 const DAYS_HE = ['ראשון','שני','שלישי','רביעי','חמישי','שישי'];
-const UNITS_PER_CART = 10;
+const UNITS_PER_CART  = 10;
+const QUICHE_DAILY_CAP = 13; // max carts of קיש אישי per day
 
 let planData    = [];   // processed rows
 let archiveData = [];   // deleted items
@@ -495,7 +524,10 @@ function readFile(file) {
       const rows = XLSX.utils.sheet_to_json(ws, {defval:''});
       showLoad('מעבד תוכנית ייצור...',70);
       setTimeout(() => {
-        planData = processWMS(rows, file.name);
+        const raw = processWMS(rows, file.name);
+        // exclude items whose SKU+desc appear in the archive
+        const archSet = new Set(archiveData.map(a => a.sku + '|' + a.desc));
+        planData = raw.filter(r => !archSet.has(r.sku + '|' + r.desc));
         showLoad('בונה גנט שבועי...',90);
         setTimeout(() => buildPlanScreen(), 300);
       }, 100);
@@ -551,6 +583,12 @@ function processWMS(rows, filename) {
 
       const urgency = stock === 0 ? 'zero' : stock < min ? 'low' : 'plan';
 
+      // Next-week day index (items with days_stock >= 6 can wait until next week)
+      const daysFloor = Math.floor(days);
+      const nextWeekDayIdx = daysFloor >= 6
+        ? Math.min(daysFloor - 6, isFridayOk ? 5 : 4)
+        : null;
+
       return {
         id:     Math.random().toString(36).slice(2),
         fam:    String(r[col(C.FAM)]  || '').trim(),
@@ -560,10 +598,13 @@ function processWMS(rows, filename) {
         stock, min, max, days, upp,
         toProduceUnits, toProduceBoxes,
         carts: Math.floor(toProduceBoxes / UNITS_PER_CART),
-        dayIdx, urgency,
+        dayIdx, originalDayIdx: dayIdx,
+        nextWeekDayIdx, urgency,
+        capacityMoved: false, capacityWarn: false,
       };
     });
 
+  applyQuicheCapacity(items);
   return items;
 }
 
@@ -583,6 +624,7 @@ function buildPlanScreen() {
   const weekDates = getWeekDates(today);
   window._todayIdx  = todayIdx;
   window._weekDates = weekDates;
+  window._viewMode  = 'current';
 
   // Populate day filter with actual dates
   document.getElementById('fDay').innerHTML =
@@ -662,42 +704,53 @@ function renderStats() {
    GANTT RENDER
 ══════════════════════════════════════════════════════════════ */
 function renderGantt() {
-  const todayIdx = window._todayIdx ?? 0;
-  const fFam     = document.getElementById('fFam').value;
-  const fUrg     = document.getElementById('fUrg').value;
-  const fDay     = document.getElementById('fDay').value;
-  const NCOLS    = 14; // 5 fixed + 6 days + 2 totals + 1 actions
+  const todayIdx  = window._todayIdx ?? 0;
+  const viewMode  = window._viewMode || 'current';
+  const isNext    = viewMode === 'next';
+  const fFam      = document.getElementById('fFam').value;
+  const fUrg      = document.getElementById('fUrg').value;
+  const fDay      = document.getElementById('fDay').value;
+  const NCOLS     = 16; // 3 name + 1 stock + 1 min + 1 max + 1 days + 6 days + 2 totals + 1 actions
 
-  const rows = planData.filter(r =>
-    (!fFam || r.fname === fFam) &&
-    (!fUrg || r.urgency === fUrg) &&
-    (fDay === '' || r.dayIdx === +fDay)
-  );
+  // For each item, pick the effective day index based on view mode
+  const effDay = r => isNext ? r.nextWeekDayIdx : r.dayIdx;
+
+  const rows = planData.filter(r => {
+    if (isNext && r.nextWeekDayIdx === null) return false;
+    const d = effDay(r);
+    return (!fFam || r.fname === fFam) &&
+           (!fUrg || r.urgency === fUrg) &&
+           (fDay === '' || d === +fDay);
+  });
 
   /* ── HEADER ── */
+  const wd = window._weekDates;
   document.getElementById('ganttHead').innerHTML = `<tr>
     <th class="th-fixed" style="min-width:100px">משפחה</th>
     <th class="th-fixed" style="min-width:70px">מק"ט</th>
     <th class="th-fixed" style="min-width:160px">תאור מוצר</th>
-    <th style="min-width:65px">מלאי</th>
-    <th style="min-width:55px">ימי מלאי</th>
+    <th style="min-width:60px">מלאי</th>
+    <th style="min-width:58px">מינ׳<span class="th-date">יח' / אר'</span></th>
+    <th style="min-width:58px">מקס׳<span class="th-date">יח' / אר'</span></th>
+    <th style="min-width:52px">ימי מלאי</th>
     ${DAYS_HE.map((d,i) => {
-      const wd = window._weekDates;
       const dateLbl = wd ? `${wd[i].getDate()}/${wd[i].getMonth()+1}` : '';
       const fridayNote = i === 5 ? `<span class="th-friday-note">מיני קיש/פשטידה</span>` : '';
-      const todayTag = i === todayIdx
+      const isToday = !isNext && i === todayIdx;
+      const todayTag = isToday
         ? `<span class="th-date">${dateLbl} ✦</span>`
         : `<span class="th-date">${dateLbl}</span>`;
-      return `<th class="${i===todayIdx?'th-today':''}" style="min-width:72px">${d}${todayTag}${fridayNote}</th>`;
+      return `<th class="${isToday?'th-today':''}" style="min-width:72px">${d}${todayTag}${fridayNote}</th>`;
     }).join('')}
     <th style="min-width:65px">סה"כ אריזות</th>
-    <th style="min-width:55px">עגלות</th>
+    <th style="min-width:52px">עגלות</th>
     <th class="no-print" style="width:62px"></th>
   </tr>`;
 
   if (!rows.length) {
     document.getElementById('ganttBody').innerHTML =
-      `<tr><td colspan="${NCOLS}" class="empty"><span class="empty-icon">📭</span>אין פריטים התואמים לסינון</td></tr>`;
+      `<tr><td colspan="${NCOLS}" class="empty"><span class="empty-icon">📭</span>אין פריטים לשבוע ${isNext?'הבא':'הנוכחי'} התואמים לסינון</td></tr>`;
+    renderCapacityBar();
     return;
   }
 
@@ -707,14 +760,13 @@ function renderGantt() {
     const k = r.fam + '|' + r.fname;
     if (!groups[k]) groups[k] = {fam:r.fam, fname:r.fname, items:[], dayTotals:Array(6).fill(0), total:0};
     groups[k].items.push(r);
-    groups[k].dayTotals[r.dayIdx] += r.toProduceBoxes;
+    groups[k].dayTotals[effDay(r)] += r.toProduceBoxes;
     groups[k].total += r.toProduceBoxes;
   });
 
   const grandDay = Array(6).fill(0);
   let grandTotal = 0;
   let html = '';
-
   const urgClass = {zero:'row-zero', low:'row-low', plan:'row-plan'};
 
   Object.values(groups).sort((a,b) => a.fam.localeCompare(b.fam)).forEach(g => {
@@ -723,22 +775,32 @@ function renderGantt() {
       &nbsp;—&nbsp;<span style="font-size:11px">${g.items.length} פריטים</span></td></tr>`;
 
     g.items
-      .sort((a,b) => (a.dayIdx - b.dayIdx) || (b.toProduceBoxes - a.toProduceBoxes))
+      .sort((a,b) => (effDay(a) - effDay(b)) || (b.toProduceBoxes - a.toProduceBoxes))
       .forEach(r => {
+        const di = effDay(r);
         const dayCells = DAYS_HE.map((_,d) => {
-          if (d !== r.dayIdx) return `<td class="day-cell"></td>`;
-          return `<td class="${d===todayIdx?'day-cell day-active':'day-cell'}">${r.toProduceBoxes.toLocaleString('he-IL')}</td>`;
+          if (d !== di) return `<td class="day-cell"></td>`;
+          const isToday = !isNext && d === todayIdx;
+          let content = r.toProduceBoxes.toLocaleString('he-IL');
+          if (r.capacityMoved) content += `<span class="cap-badge" title="הוקדם — קיבולת יומית"> 🔀</span>`;
+          if (r.capacityWarn)  content += `<span class="cap-badge" title="חריגת קיבולת!"> ⚠️</span>`;
+          return `<td class="${isToday?'day-cell day-active':'day-cell'}">${content}</td>`;
         }).join('');
 
         const daysDisplay = r.days < 1
           ? `<span class="badge-days badge-zero">0</span>`
           : `<span class="badge-days">${Number(r.days).toFixed(1)}</span>`;
 
+        const minBoxes = Math.floor(r.min / Math.max(1, r.upp));
+        const maxBoxes = Math.floor(r.max / Math.max(1, r.upp));
+
         html += `<tr class="${urgClass[r.urgency]}">
           <td class="td-cat">${escH(r.fname)}</td>
           <td class="td-sku">${escH(r.sku)}</td>
           <td class="td-name">${escH(r.desc)}</td>
           <td class="td-num">${r.stock.toLocaleString('he-IL')}</td>
+          <td class="td-minmax"><span>${r.min.toLocaleString('he-IL')}</span><span class="mm-boxes">${minBoxes} אר'</span></td>
+          <td class="td-minmax"><span>${r.max.toLocaleString('he-IL')}</span><span class="mm-boxes">${maxBoxes} אר'</span></td>
           <td class="td-days">${daysDisplay}</td>
           ${dayCells}
           <td class="td-num" style="font-weight:600">${r.toProduceBoxes.toLocaleString('he-IL')}</td>
@@ -750,11 +812,12 @@ function renderGantt() {
         </tr>`;
       });
 
-    const subDays = g.dayTotals.map((v,d) =>
-      `<td class="${d===todayIdx?'day-cell day-active':'day-cell'}">${v>0?v.toLocaleString('he-IL'):''}</td>`
-    ).join('');
+    const subDays = g.dayTotals.map((v,d) => {
+      const isToday = !isNext && d === todayIdx;
+      return `<td class="${isToday?'day-cell day-active':'day-cell'}">${v>0?v.toLocaleString('he-IL'):''}</td>`;
+    }).join('');
     html += `<tr class="sub-row">
-      <td colspan="5" style="text-align:right;padding:7px 12px">סה"כ ${escH(g.fname)}</td>
+      <td colspan="7" style="text-align:right;padding:7px 12px">סה"כ ${escH(g.fname)}</td>
       ${subDays}
       <td class="td-num">${g.total.toLocaleString('he-IL')}</td>
       <td class="td-num">${Math.floor(g.total/UNITS_PER_CART)}</td>
@@ -765,11 +828,12 @@ function renderGantt() {
     grandTotal += g.total;
   });
 
-  const grandDayCells = grandDay.map((v,d) =>
-    `<td class="${d===todayIdx?'day-cell day-active':'day-cell'}">${v>0?v.toLocaleString('he-IL'):''}</td>`
-  ).join('');
+  const grandDayCells = grandDay.map((v,d) => {
+    const isToday = !isNext && d === todayIdx;
+    return `<td class="${isToday?'day-cell day-active':'day-cell'}">${v>0?v.toLocaleString('he-IL'):''}</td>`;
+  }).join('');
   html += `<tr class="grand-row">
-    <td colspan="5" style="text-align:right;padding:10px 14px;font-size:13px">✦ &nbsp;סה"כ כולל</td>
+    <td colspan="7" style="text-align:right;padding:10px 14px;font-size:13px">✦ &nbsp;סה"כ כולל</td>
     ${grandDayCells}
     <td class="day-cell">${grandTotal.toLocaleString('he-IL')}</td>
     <td class="day-cell">${Math.floor(grandTotal/UNITS_PER_CART)}</td>
@@ -777,6 +841,7 @@ function renderGantt() {
   </tr>`;
 
   document.getElementById('ganttBody').innerHTML = html;
+  renderCapacityBar();
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -872,10 +937,15 @@ function showToast(msg) {
 function recalcItem(item) {
   const isFridayOk = /מיני\s*(קיש|פשטידה)/i.test(item.desc);
   item.dayIdx         = Math.min(Math.max(Math.floor(item.days), 0), isFridayOk ? 5 : 4);
+  item.originalDayIdx = item.dayIdx;
+  const daysFloor     = Math.floor(item.days);
+  item.nextWeekDayIdx = daysFloor >= 6 ? Math.min(daysFloor - 6, isFridayOk ? 5 : 4) : null;
   item.toProduceUnits = item.max > 0 ? Math.max(0, item.max - item.stock) : 0;
   item.toProduceBoxes = Math.round(item.toProduceUnits / Math.max(1, item.upp));
   item.carts          = Math.floor(item.toProduceBoxes / UNITS_PER_CART);
   item.urgency        = item.stock === 0 ? 'zero' : item.stock < item.min ? 'low' : 'plan';
+  item.capacityMoved  = false;
+  item.capacityWarn   = false;
   return item;
 }
 
@@ -958,6 +1028,7 @@ function saveItem() {
   }
 
   closeModal();
+  applyQuicheCapacity(planData);
   renderStats();
   renderGantt();
   showToast(_editId ? '✅ פריט עודכן' : '✅ פריט נוסף לתוכנית');
@@ -970,6 +1041,7 @@ function deleteItem(id) {
   item.deletedAt = new Date().toISOString();
   archiveData.unshift(item);
   updateArchiveBtn();
+  applyQuicheCapacity(planData);
   renderStats();
   renderGantt();
   showToast('🗄️ פריט הועבר לארכיון');
@@ -1026,6 +1098,7 @@ function restoreItem(i) {
   planData.push(item);
   updateArchiveBtn();
   renderArchive();
+  applyQuicheCapacity(planData);
   renderStats();
   renderGantt();
   showToast('↩️ פריט שוחזר לתוכנית');
@@ -1042,6 +1115,120 @@ function permDeleteItem(i) {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { closeModal(); closeArchive(); }
 });
+
+/* ══════════════════════════════════════════════════════════════
+   QUICHE CAPACITY  (13 carts / day)
+══════════════════════════════════════════════════════════════ */
+function isQuicheIndividual(item) {
+  return /קישים/i.test(item.fname) && !/מיני/i.test(item.desc);
+}
+
+function applyQuicheCapacity(items) {
+  const qItems = items.filter(isQuicheIndividual);
+  if (!qItems.length) return items;
+
+  // Reset to original deadline before re-scheduling
+  qItems.forEach(item => {
+    item.dayIdx        = item.originalDayIdx ?? item.dayIdx;
+    item.capacityMoved = false;
+    item.capacityWarn  = false;
+  });
+
+  const caps = Array(6).fill(QUICHE_DAILY_CAP);
+  const urgOrd = {zero: 0, low: 1, plan: 2};
+
+  // Process earliest-deadline first, most-urgent first within same deadline
+  qItems
+    .slice()
+    .sort((a, b) => (a.dayIdx - b.dayIdx) || (urgOrd[a.urgency] - urgOrd[b.urgency]))
+    .forEach(item => {
+      let assigned = false;
+      // Try to fit on deadline day; if full, try earlier days
+      for (let d = item.dayIdx; d >= 0; d--) {
+        if (caps[d] >= item.carts) {
+          caps[d] -= item.carts;
+          if (d < item.dayIdx) { item.dayIdx = d; item.capacityMoved = true; }
+          assigned = true;
+          break;
+        }
+      }
+      if (!assigned) item.capacityWarn = true;
+    });
+
+  return items;
+}
+
+function renderCapacityBar() {
+  const el = document.getElementById('capacityBar');
+  if (!el) return;
+  const qItems = planData.filter(isQuicheIndividual);
+  if (!qItems.length) { el.innerHTML = ''; return; }
+
+  const dayTotals = Array(6).fill(0);
+  qItems.forEach(item => { dayTotals[item.dayIdx] += item.carts; });
+
+  const wd = window._weekDates;
+  el.innerHTML = `
+    <div class="cap-bar-wrap">
+      <div class="cap-bar-title">
+        🍕 קיבולת קיש אישי יומית
+        <span style="font-weight:400;font-size:10.5px;color:var(--text3)">מקסימום ${QUICHE_DAILY_CAP} עגלות ליום</span>
+      </div>
+      <div class="cap-days">
+        ${DAYS_HE.slice(0, 5).map((d, i) => {
+          const v   = dayTotals[i];
+          const pct = Math.min(100, Math.round(v / QUICHE_DAILY_CAP * 100));
+          const cls = v === 0 ? 'cap-fill-ok' : v > QUICHE_DAILY_CAP ? 'cap-fill-over' : v >= QUICHE_DAILY_CAP * 0.85 ? 'cap-fill-warn' : 'cap-fill-ok';
+          const dateLbl = wd ? ` ${wd[i].getDate()}/${wd[i].getMonth() + 1}` : '';
+          const overTxt = v > QUICHE_DAILY_CAP ? ' ⚠️' : '';
+          return `<div class="cap-day">
+            <div class="cap-day-label">
+              <span>${d}${dateLbl}</span>
+              <strong style="color:${v > QUICHE_DAILY_CAP ? 'var(--red)' : 'var(--text)'}">${v}/${QUICHE_DAILY_CAP}${overTxt}</strong>
+            </div>
+            <div class="cap-track"><div class="cap-fill ${cls}" style="width:${pct}%"></div></div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   WEEK TOGGLE
+══════════════════════════════════════════════════════════════ */
+function setWeekMode(mode) {
+  window._viewMode = mode;
+  document.getElementById('btnWeekCur').classList.toggle('active', mode === 'current');
+  document.getElementById('btnWeekNxt').classList.toggle('active', mode === 'next');
+
+  const today = new Date();
+  let weekDates;
+  if (mode === 'next') {
+    const nextSun = new Date(today);
+    nextSun.setDate(today.getDate() - today.getDay() + 7);
+    weekDates = Array.from({length: 6}, (_, i) => {
+      const dt = new Date(nextSun);
+      dt.setDate(nextSun.getDate() + i);
+      return dt;
+    });
+    window._todayIdx  = -1; // no "today" highlight next week
+  } else {
+    weekDates         = getWeekDates(today);
+    const wd          = today.getDay();
+    window._todayIdx  = wd === 6 ? 0 : wd;
+  }
+  window._weekDates = weekDates;
+
+  // Refresh day filter options with correct dates
+  document.getElementById('fDay').innerHTML =
+    '<option value="">כל הימים</option>' +
+    DAYS_HE.map((d, i) => {
+      const dt = weekDates[i];
+      return `<option value="${i}">${d}  ${dt.getDate()}/${dt.getMonth() + 1}</option>`;
+    }).join('');
+
+  renderGantt();
+}
 </script>
 </body>
 </html>
