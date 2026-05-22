@@ -163,15 +163,19 @@ tr.row-critical:hover td{filter:brightness(.97)}
 .day-cell{text-align:center;font-weight:700;font-size:12.5px;min-width:60px}
 .day-active{background:#e8f4ff!important;border:2px solid var(--blue2)!important;border-radius:4px;padding:5px 8px!important}
 /* Inline Gantt editing */
-.day-cell-movable{cursor:pointer;color:transparent;font-size:11px;transition:all .12s}
-.day-cell-movable:hover{background:rgba(37,99,235,.07)!important;color:var(--text3)}
-.day-cell-editable{cursor:pointer}
-.day-cell-editable:hover{filter:brightness(.94)}
+.day-cell-editable{cursor:pointer;transition:filter .12s}
+.day-cell-editable:hover{filter:brightness(.93)}
+.day-has-val{background:#e8f4ff!important;border:2px solid var(--blue2)!important;border-radius:4px;padding:4px 6px!important}
+/* Editable num cells (shipped / min / max) */
+.td-edit-click{cursor:pointer;text-decoration:underline dotted var(--border2);text-underline-offset:2px}
+.td-edit-click:hover{background:rgba(37,99,235,.05)!important}
+/* Shipped cell */
+.td-shipped{text-align:center;font-size:12px;min-width:56px}
 /* Expected stock cell */
-.td-expected{text-align:center;font-size:11px;min-width:62px}
+.td-expected{text-align:center;font-size:11px;min-width:70px}
 .td-expected .exp-sub{display:block;font-size:9px;color:var(--text3);margin-top:1px}
 /* Lot-size badge */
-.lot-badge{font-size:9px;background:var(--blue-light);color:var(--blue);border-radius:4px;padding:1px 4px;margin-right:3px;font-weight:500}
+.lot-badge{font-size:9px;background:var(--blue-light);color:var(--blue);border-radius:4px;padding:1px 4px;margin-left:2px;font-weight:500}
 .day-today-col td:not(.td-fixed){background:rgba(37,99,235,.04)!important}
 
 /* Subtotal / total rows */
@@ -366,8 +370,11 @@ tr.grand-row .day-cell{font-size:13px}
     <!-- Filters -->
     <div class="filters no-print">
       <div class="week-toggle">
-        <button id="btnWeekCur" class="active" onclick="setWeekMode('current')">שבוע זה</button>
-        <button id="btnWeekNxt" onclick="setWeekMode('next')">שבוע הבא ›</button>
+        <button id="btn-w0" class="active" onclick="setWeekOffset(0)">שבוע זה</button>
+        <button id="btn-w1" onclick="setWeekOffset(1)">+1</button>
+        <button id="btn-w2" onclick="setWeekOffset(2)">+2</button>
+        <button id="btn-w3" onclick="setWeekOffset(3)">+3</button>
+        <button id="btn-w4" onclick="setWeekOffset(4)">+4</button>
       </div>
       <span class="filter-label">סינון:</span>
       <select class="fsel" id="fFam" onchange="renderGantt()">
@@ -676,6 +683,13 @@ function applyGapToItems(items) {
                    : item.stock < item.min ? 'low'
                    : 'plan';
     }
+    // Sync dayQtys with current dayIdx (unless user manually distributed across days)
+    if (!item.manuallyEdited) {
+      item.dayQtys = Array(6).fill(0);
+      item.dayQtys[item.dayIdx] = item.toProduceBoxes;
+    } else {
+      item.dayQtys = item.dayQtys || Array(6).fill(0);
+    }
   });
 }
 
@@ -734,6 +748,9 @@ function processWMS(rows, filename) {
         dayIdx, originalDayIdx: dayIdx, baseDayIdx: dayIdx,
         nextWeekDayIdx, urgency,
         capacityMoved: false, capacityWarn: false,
+        dayQtys: (() => { const q = Array(6).fill(0); q[dayIdx] = toProduceBoxes; return q; })(),
+        shipped: 0, manuallyEdited: false,
+        openOrders: 0, netStock: stock,
       };
     });
 
@@ -756,18 +773,23 @@ function buildPlanScreen() {
 
   // Compute Sun–Fri dates for this week
   const weekDates = getWeekDates(today);
-  window._todayIdx  = todayIdx;
-  window._weekDates = weekDates;
-  window._viewMode  = 'current';
+  window._todayIdx   = todayIdx;
+  window._weekDates  = weekDates;
+  window._viewMode   = 'current';
+  window._weekOffset = 0;
 
   // Populate day filter with actual dates
   document.getElementById('fDay').innerHTML =
     '<option value="">כל הימים</option>' +
     DAYS_HE.map((d, i) => {
       const dt = weekDates[i];
-      const label = `${d}  ${dt.getDate()}/${dt.getMonth()+1}`;
-      return `<option value="${i}">${label}</option>`;
+      return `<option value="${i}">${d}  ${dt.getDate()}/${dt.getMonth()+1}</option>`;
     }).join('');
+  // Reset week toggle buttons
+  for (let i = 0; i <= 4; i++) {
+    const b = document.getElementById(`btn-w${i}`);
+    if (b) b.classList.toggle('active', i === 0);
+  }
 
   // Subheader
   document.getElementById('tbSub').textContent =
@@ -851,21 +873,35 @@ function renderGantt() {
   const fFam      = document.getElementById('fFam').value;
   const fUrg      = document.getElementById('fUrg').value;
   const fDay      = document.getElementById('fDay').value;
-  const hasGap     = Object.keys(gapData).length > 0;
-  const NCOLS      = hasGap ? 18 : 17; // +1 GAP col + 1 expected-stock col
-  const FIXED_COLS = hasGap ? 8  : 7;  // fixed cols before day columns
+  const hasGap      = Object.keys(gapData).length > 0;
+  const weekOffset  = window._weekOffset || 0;
+  const isEditable  = weekOffset === 0; // only current week is directly editable
+  // Cols: משפחה מק"ט תאור מלאי שולח [הזמ'] מינ' מקס' ימי + 6 days + סה"כ עגלות מלאי_צפוי פעולות
+  const FIXED_COLS  = hasGap ? 9 : 8;
+  const NCOLS       = FIXED_COLS + 6 + 2 + 1 + 1; // fixed+days+2totals+expected+actions
 
-  // For each item, pick the effective day index based on view mode.
-  // Next week: items with nextWeekDayIdx use it; others repeat on same weekday.
-  const effDay = r => isNext
-    ? (r.nextWeekDayIdx !== null ? r.nextWeekDayIdx : r.originalDayIdx)
-    : r.dayIdx;
+  // Normalize legacy items that may lack dayQtys/shipped
+  planData.forEach(r => {
+    if (!r.dayQtys) { r.dayQtys = Array(6).fill(0); r.dayQtys[r.dayIdx] = r.toProduceBoxes; }
+    r.shipped = r.shipped || 0;
+  });
+
+  // effDay: for future-week views, compute production day from days_stock projection
+  const effDay = r => {
+    if (weekOffset === 0) return r.dayIdx;
+    const dFloor = Math.floor(r.days);
+    const isFri  = /מיני\s*(קיש|פשטידה)/i.test(r.desc);
+    const cap    = isFri ? 5 : 4;
+    const d      = dFloor - weekOffset * 6;
+    return d >= 0 ? Math.min(Math.max(d, 0), cap) : r.originalDayIdx;
+  };
 
   const rows = planData.filter(r => {
-    const d = effDay(r);
-    return (!fFam || r.fname === fFam) &&
-           (!fUrg || r.urgency === fUrg) &&
-           (fDay === '' || d === +fDay);
+    if (!fFam || r.fname === fFam) {} else return false;
+    if (!fUrg || r.urgency === fUrg) {} else return false;
+    if (fDay === '') return true;
+    if (weekOffset === 0) return (r.dayQtys[+fDay] || 0) > 0;
+    return effDay(r) === +fDay;
   });
 
   /* ── HEADER ── */
@@ -875,9 +911,10 @@ function renderGantt() {
     <th class="th-fixed" style="min-width:70px">מק"ט</th>
     <th class="th-fixed" style="min-width:160px">תאור מוצר</th>
     <th style="min-width:60px">מלאי</th>
+    <th style="min-width:56px">שולח<span class="th-date">יחידות</span></th>
     ${hasGap ? `<th style="min-width:58px;color:#c4b5fd">הזמ'<span class="th-date">יחידות</span></th>` : ''}
-    <th style="min-width:58px">מינ׳<span class="th-date">יח' / אר'</span></th>
-    <th style="min-width:58px">מקס׳<span class="th-date">יח' / אר'</span></th>
+    <th style="min-width:58px">מינ׳<span class="th-date">יח' / אר' ✎</span></th>
+    <th style="min-width:58px">מקס׳<span class="th-date">יח' / אר' ✎</span></th>
     <th style="min-width:52px">ימי מלאי</th>
     ${DAYS_HE.map((d,i) => {
       const dateLbl = wd ? `${wd[i].getDate()}/${wd[i].getMonth()+1}` : '';
@@ -890,7 +927,7 @@ function renderGantt() {
     }).join('')}
     <th style="min-width:65px">סה"כ אריזות</th>
     <th style="min-width:52px">עגלות</th>
-    <th style="min-width:68px">מלאי<span class="th-date">לאחר ייצור</span></th>
+    <th style="min-width:72px">מלאי צפוי<span class="th-date">יח' / אר'</span></th>
     <th class="no-print" style="width:62px"></th>
   </tr>`;
 
@@ -907,8 +944,13 @@ function renderGantt() {
     const k = r.fam + '|' + r.fname;
     if (!groups[k]) groups[k] = {fam:r.fam, fname:r.fname, items:[], dayTotals:Array(6).fill(0), total:0};
     groups[k].items.push(r);
-    groups[k].dayTotals[effDay(r)] += r.toProduceBoxes;
-    groups[k].total += r.toProduceBoxes;
+    if (weekOffset === 0) {
+      r.dayQtys.forEach((v, d) => { groups[k].dayTotals[d] += v; });
+      groups[k].total += r.dayQtys.reduce((s,v) => s+v, 0);
+    } else {
+      groups[k].dayTotals[effDay(r)] += r.toProduceBoxes;
+      groups[k].total += r.toProduceBoxes;
+    }
   });
 
   const grandDay = Array(6).fill(0);
@@ -925,23 +967,26 @@ function renderGantt() {
       .sort((a,b) => (effDay(a) - effDay(b)) || (b.toProduceBoxes - a.toProduceBoxes))
       .forEach(r => {
         const di = effDay(r);
-        const isFriOk = /מיני\s*(קיש|פשטידה)/i.test(r.desc);
-        const lot     = getLotSize(r.fname, r.desc);
+        const lot  = getLotSize(r.fname, r.desc);
+        // Day cells — all 6 cells editable when weekOffset=0; future weeks: single calc day
         const dayCells = DAYS_HE.map((_,d) => {
-          if (d !== di) {
-            // Empty cell — click to move production here (current week only, Friday rule applies)
-            if (!isNext && !(d === 5 && !isFriOk)) {
-              return `<td class="day-cell day-cell-movable" onclick="moveItemDay('${r.id}',${d})" title="העבר ל${DAYS_HE[d]}">›</td>`;
-            }
-            return `<td class="day-cell"></td>`;
+          const val     = weekOffset === 0
+            ? (r.dayQtys[d] || 0)
+            : (effDay(r) === d ? r.toProduceBoxes : 0);
+          const cellId  = `dcell_${r.id}_${d}`;
+          const hasV    = val > 0;
+          const isTod   = weekOffset === 0 && d === todayIdx;
+          const cls     = `day-cell${hasV ? ' day-has-val' : ''}${isEditable ? ' day-cell-editable' : ''}${isTod && !hasV ? ' day-today-col' : ''}`;
+          let content   = '';
+          if (hasV) {
+            if (lot > 1) content += `<span class="lot-badge">×${lot}</span>`;
+            content += val.toLocaleString('he-IL');
+            if (d === r.dayIdx && r.capacityMoved) content += ` <span class="cap-badge" title="הוקדם">🔀</span>`;
+            if (d === r.dayIdx && r.capacityWarn)  content += ` <span class="cap-badge" title="חריגה">⚠️</span>`;
           }
-          const isToday  = !isNext && d === todayIdx;
-          const cellId   = `dcell_${r.id}_${d}`;
-          let   content  = r.toProduceBoxes.toLocaleString('he-IL');
-          if (lot > 1) content = `<span class="lot-badge">×${lot}</span>${content}`;
-          if (r.capacityMoved) content += `<span class="cap-badge" title="הוקדם — קיבולת יומית"> 🔀</span>`;
-          if (r.capacityWarn)  content += `<span class="cap-badge" title="חריגת קיבולת!"> ⚠️</span>`;
-          return `<td id="${cellId}" class="${isToday?'day-cell day-active':'day-cell'} day-cell-editable" onclick="editDayQty('${r.id}',${d})" title="לחץ לעריכת כמות">${content}</td>`;
+          return isEditable
+            ? `<td id="${cellId}" class="${cls}" onclick="editDayQty('${r.id}',${d})" title="לחץ לעריכה">${content}</td>`
+            : `<td class="${cls}">${content}</td>`;
         }).join('');
 
         const daysDisplay = r.days < 1
@@ -950,18 +995,19 @@ function renderGantt() {
 
         const minBoxes = Math.floor(r.min / Math.max(1, r.upp));
         const maxBoxes = Math.floor(r.max / Math.max(1, r.upp));
+        const openOrd  = r.openOrders || 0;
+        const shipped  = r.shipped   || 0;
+        const rowBoxes = weekOffset === 0 ? r.dayQtys.reduce((s,v)=>s+v,0) : r.toProduceBoxes;
 
-        // Expected stock after production (net of open orders if GAP loaded)
-        const afterProd    = r.stock + r.toProduceUnits;
-        const openOrd      = r.openOrders || 0;
-        const netAfterProd = hasGap ? afterProd - openOrd : afterProd;
-        const expColor     = netAfterProd >= r.max  ? 'var(--green)'
-                           : netAfterProd >= r.min  ? 'var(--yellow)'
-                           : netAfterProd >= 0      ? 'var(--orange)'
-                           : 'var(--red)';
-        const expCell = `<td class="td-expected">
-          <span style="color:${expColor};font-weight:700">${netAfterProd.toLocaleString('he-IL')}</span>
-          ${hasGap && openOrd > 0 ? `<span class="exp-sub">ברוטו ${afterProd.toLocaleString('he-IL')}</span>` : ''}
+        // Expected stock after production (units & boxes), net of shipped + orders
+        const expUnits  = r.stock - shipped + rowBoxes * Math.max(1, r.upp) - openOrd;
+        const expBoxes  = Math.round(expUnits / Math.max(1, r.upp));
+        const expColor  = expUnits >= r.max ? 'var(--green)'
+                        : expUnits >= r.min ? 'var(--yellow)'
+                        : expUnits >= 0     ? 'var(--orange)' : 'var(--red)';
+        const expCell   = `<td class="td-expected">
+          <span style="color:${expColor};font-weight:700">${expUnits.toLocaleString('he-IL')}</span>
+          <span class="exp-sub">${expBoxes.toLocaleString('he-IL')} אר'</span>
         </td>`;
 
         html += `<tr class="${urgClass[r.urgency]}">
@@ -969,13 +1015,14 @@ function renderGantt() {
           <td class="td-sku">${escH(r.sku)}</td>
           <td class="td-name">${escH(r.desc)}</td>
           <td class="td-num">${r.stock.toLocaleString('he-IL')}</td>
+          <td id="shipped_${r.id}" class="td-shipped td-edit-click" onclick="editShipped('${r.id}')" title="כמות שנשלחה היום — לחץ לעריכה">${shipped > 0 ? shipped.toLocaleString('he-IL') : '—'}</td>
           ${hasGap ? `<td class="td-num" style="${openOrd>r.stock?'color:var(--purple);font-weight:700':openOrd>0?'color:var(--text2)':''}">${openOrd>0?openOrd.toLocaleString('he-IL'):'—'}</td>` : ''}
-          <td class="td-minmax"><span>${r.min.toLocaleString('he-IL')}</span><span class="mm-boxes">${minBoxes} אר'</span></td>
-          <td class="td-minmax"><span>${r.max.toLocaleString('he-IL')}</span><span class="mm-boxes">${maxBoxes} אר'</span></td>
+          <td id="mm_min_${r.id}" class="td-minmax td-edit-click" onclick="editMinMax('${r.id}','min')" title="לחץ לעריכת מינימום"><span>${r.min.toLocaleString('he-IL')}</span><span class="mm-boxes">${minBoxes} אר'</span></td>
+          <td id="mm_max_${r.id}" class="td-minmax td-edit-click" onclick="editMinMax('${r.id}','max')" title="לחץ לעריכת מקסימום"><span>${r.max.toLocaleString('he-IL')}</span><span class="mm-boxes">${maxBoxes} אר'</span></td>
           <td class="td-days">${daysDisplay}</td>
           ${dayCells}
-          <td class="td-num" style="font-weight:600">${r.toProduceBoxes.toLocaleString('he-IL')}</td>
-          <td class="td-num">${r.carts}</td>
+          <td class="td-num" style="font-weight:600">${rowBoxes.toLocaleString('he-IL')}</td>
+          <td class="td-num">${Math.floor(rowBoxes/UNITS_PER_CART)}</td>
           ${expCell}
           <td class="td-actions no-print">
             <button class="act-btn act-edit" onclick="openEditModal('${r.id}')" title="עריכה">✏️</button>
@@ -1124,6 +1171,10 @@ function recalcItem(item) {
   item.urgency        = item.stock === 0 ? 'zero' : item.stock < item.min ? 'low' : 'plan';
   item.capacityMoved  = false;
   item.capacityWarn   = false;
+  item.dayQtys        = Array(6).fill(0);
+  item.dayQtys[item.dayIdx] = item.toProduceBoxes;
+  item.manuallyEdited = false;
+  item.shipped        = item.shipped || 0;
   return item;
 }
 
@@ -1386,6 +1437,10 @@ function applyQuicheCapacity(items) {
     item.dayIdx        = item.originalDayIdx ?? item.dayIdx;
     item.capacityMoved = false;
     item.capacityWarn  = false;
+    if (!item.manuallyEdited) {
+      item.dayQtys = Array(6).fill(0);
+      item.dayQtys[item.dayIdx] = item.toProduceBoxes;
+    }
   });
 
   const caps = Array(6).fill(QUICHE_DAILY_CAP);
@@ -1401,7 +1456,13 @@ function applyQuicheCapacity(items) {
       for (let d = item.dayIdx; d >= 0; d--) {
         if (caps[d] >= item.carts) {
           caps[d] -= item.carts;
-          if (d < item.dayIdx) { item.dayIdx = d; item.capacityMoved = true; }
+          if (d < item.dayIdx) {
+            if (!item.manuallyEdited) {
+              item.dayQtys = Array(6).fill(0);
+              item.dayQtys[d] = item.toProduceBoxes;
+            }
+            item.dayIdx = d; item.capacityMoved = true;
+          }
           assigned = true;
           break;
         }
@@ -1454,37 +1515,68 @@ function renderCapacityBar() {
 /* ══════════════════════════════════════════════════════════════
    INLINE GANTT EDITING
 ══════════════════════════════════════════════════════════════ */
-function moveItemDay(id, newDay) {
+function editShipped(id) {
   const item = planData.find(r => r.id === id);
   if (!item) return;
-  const isFri = /מיני\s*(קיש|פשטידה)/i.test(item.desc);
-  if (newDay === 5 && !isFri) { showToast('ביום שישי: רק מיני קיש / מיני פשטידה'); return; }
-  item.dayIdx         = newDay;
-  item.originalDayIdx = newDay;
-  item.baseDayIdx     = newDay; // lock new day as baseline
-  applyQuicheCapacity(planData);
-  renderStats();
-  renderGantt();
+  const cell = document.getElementById(`shipped_${id}`);
+  if (!cell) return;
+  const inp = document.createElement('input');
+  inp.type = 'number'; inp.value = item.shipped || 0; inp.min = 0;
+  inp.style.cssText = 'width:56px;text-align:center;border:2px solid var(--blue2);border-radius:4px;padding:2px 4px;font-size:12px;font-weight:700;background:#fff;outline:none';
+  let done = false;
+  const save = () => { if (done) return; done = true; item.shipped = Math.max(0, parseFloat(inp.value)||0); renderStats(); renderGantt(); };
+  inp.onblur = save;
+  inp.onkeydown = e => { if (e.key==='Enter') inp.blur(); if (e.key==='Escape') { done=true; renderGantt(); } };
+  cell.innerHTML = ''; cell.appendChild(inp);
+  setTimeout(() => { inp.focus(); inp.select(); }, 0);
+}
+
+function editMinMax(id, field) {
+  const item = planData.find(r => r.id === id);
+  if (!item) return;
+  const cell = document.getElementById(`mm_${field}_${id}`);
+  if (!cell) return;
+  const inp = document.createElement('input');
+  inp.type = 'number'; inp.value = item[field] || 0; inp.min = 0;
+  inp.style.cssText = 'width:62px;text-align:center;border:2px solid var(--blue2);border-radius:4px;padding:2px 4px;font-size:11px;font-weight:700;background:#fff;outline:none';
+  let done = false;
+  const save = () => {
+    if (done) return; done = true;
+    item[field] = Math.max(0, parseFloat(inp.value)||0);
+    recalcItem(item);
+    applyGapToItems(planData);
+    applyQuicheCapacity(planData);
+    renderStats(); renderGantt();
+  };
+  inp.onblur = save;
+  inp.onkeydown = e => { if (e.key==='Enter') inp.blur(); if (e.key==='Escape') { done=true; renderGantt(); } };
+  cell.innerHTML = ''; cell.appendChild(inp);
+  setTimeout(() => { inp.focus(); inp.select(); }, 0);
 }
 
 function editDayQty(id, d) {
   const item   = planData.find(r => r.id === id);
   if (!item) return;
-  const cellId = `dcell_${item.id}_${d}`;
+  if (!item.dayQtys) { item.dayQtys = Array(6).fill(0); item.dayQtys[item.dayIdx] = item.toProduceBoxes; }
+  const cellId = `dcell_${id}_${d}`;
   const cell   = document.getElementById(cellId);
   if (!cell) return;
   const inp = document.createElement('input');
   inp.type  = 'number';
-  inp.value = item.toProduceBoxes;
+  inp.value = item.dayQtys[d] || 0;
   inp.min   = 0;
   inp.style.cssText = 'width:56px;text-align:center;border:2px solid var(--blue2);border-radius:4px;padding:2px 4px;font-size:12px;font-weight:700;background:#fff;outline:none';
   let done = false;
   const save = () => {
     if (done) return; done = true;
-    const boxes = Math.max(0, parseInt(inp.value) || 0);
-    item.toProduceBoxes = boxes;
-    item.toProduceUnits = boxes * Math.max(1, item.upp);
-    item.carts          = Math.floor(boxes / UNITS_PER_CART);
+    item.dayQtys[d]     = Math.max(0, parseInt(inp.value) || 0);
+    item.manuallyEdited = true;
+    const total         = item.dayQtys.reduce((s,v) => s+v, 0);
+    item.toProduceBoxes = total;
+    item.toProduceUnits = total * Math.max(1, item.upp);
+    item.carts          = Math.floor(total / UNITS_PER_CART);
+    const first         = item.dayQtys.findIndex(v => v > 0);
+    if (first >= 0) item.dayIdx = first;
     applyQuicheCapacity(planData);
     renderStats();
     renderGantt();
@@ -1499,39 +1591,39 @@ function editDayQty(id, d) {
 /* ══════════════════════════════════════════════════════════════
    WEEK TOGGLE
 ══════════════════════════════════════════════════════════════ */
-function setWeekMode(mode) {
-  window._viewMode = mode;
-  document.getElementById('btnWeekCur').classList.toggle('active', mode === 'current');
-  document.getElementById('btnWeekNxt').classList.toggle('active', mode === 'next');
+function setWeekOffset(n) {
+  window._weekOffset = n;
+  window._viewMode   = n === 0 ? 'current' : 'next'; // backward compat
 
-  const today = new Date();
-  let weekDates;
-  if (mode === 'next') {
-    const nextSun = new Date(today);
-    nextSun.setDate(today.getDate() - today.getDay() + 7);
-    weekDates = Array.from({length: 6}, (_, i) => {
-      const dt = new Date(nextSun);
-      dt.setDate(nextSun.getDate() + i);
-      return dt;
-    });
-    window._todayIdx  = -1; // no "today" highlight next week
-  } else {
-    weekDates         = getWeekDates(today);
-    const wd          = today.getDay();
-    window._todayIdx  = wd === 6 ? 0 : wd;
+  for (let i = 0; i <= 4; i++) {
+    const btn = document.getElementById(`btn-w${i}`);
+    if (btn) btn.classList.toggle('active', i === n);
   }
-  window._weekDates = weekDates;
 
-  // Refresh day filter options with correct dates
+  const today    = new Date();
+  const thisSun  = new Date(today);
+  thisSun.setDate(today.getDate() - today.getDay()); // Sunday of this week
+  const baseSun  = new Date(thisSun);
+  baseSun.setDate(thisSun.getDate() + n * 7);       // Sunday of target week
+
+  const weekDates = Array.from({length: 6}, (_, i) => {
+    const dt = new Date(baseSun); dt.setDate(baseSun.getDate() + i); return dt;
+  });
+  window._weekDates = weekDates;
+  window._todayIdx  = n === 0 ? (today.getDay() === 6 ? 0 : today.getDay()) : -1;
+
   document.getElementById('fDay').innerHTML =
     '<option value="">כל הימים</option>' +
     DAYS_HE.map((d, i) => {
       const dt = weekDates[i];
-      return `<option value="${i}">${d}  ${dt.getDate()}/${dt.getMonth() + 1}</option>`;
+      const lbl = n > 0 ? `+${n} ${d}` : d;
+      return `<option value="${i}">${lbl}  ${dt.getDate()}/${dt.getMonth()+1}</option>`;
     }).join('');
 
   renderGantt();
 }
+// backward compat for saved HTML files
+function setWeekMode(mode) { setWeekOffset(mode === 'current' ? 0 : 1); }
 </script>
 </body>
 </html>
