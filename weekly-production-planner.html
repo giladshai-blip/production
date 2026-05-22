@@ -162,6 +162,16 @@ tr.row-critical:hover td{filter:brightness(.97)}
 /* Day cells */
 .day-cell{text-align:center;font-weight:700;font-size:12.5px;min-width:60px}
 .day-active{background:#e8f4ff!important;border:2px solid var(--blue2)!important;border-radius:4px;padding:5px 8px!important}
+/* Inline Gantt editing */
+.day-cell-movable{cursor:pointer;color:transparent;font-size:11px;transition:all .12s}
+.day-cell-movable:hover{background:rgba(37,99,235,.07)!important;color:var(--text3)}
+.day-cell-editable{cursor:pointer}
+.day-cell-editable:hover{filter:brightness(.94)}
+/* Expected stock cell */
+.td-expected{text-align:center;font-size:11px;min-width:62px}
+.td-expected .exp-sub{display:block;font-size:9px;color:var(--text3);margin-top:1px}
+/* Lot-size badge */
+.lot-badge{font-size:9px;background:var(--blue-light);color:var(--blue);border-radius:4px;padding:1px 4px;margin-right:3px;font-weight:500}
 .day-today-col td:not(.td-fixed){background:rgba(37,99,235,.04)!important}
 
 /* Subtotal / total rows */
@@ -491,6 +501,23 @@ const DAYS_HE = ['ראשון','שני','שלישי','רביעי','חמישי','�
 const UNITS_PER_CART  = 10;
 const QUICHE_DAILY_CAP = 13; // max carts of קיש אישי per day
 
+// Production lot sizes (round UP to nearest multiple)
+const LOT_RULES = [
+  { famPat: /קיש|פשטידה/i, descPat: /אישי/i,   lot: 20 },
+  { famPat: /קיש|פשטידה/i, descPat: /גדול/i,    lot: 30 },
+  { famPat: /קיש|פשטידה/i, descPat: /בינוני/i,  lot: 60 },
+];
+function getLotSize(fname, desc) {
+  for (const r of LOT_RULES) {
+    if (r.famPat.test(fname) && r.descPat.test(desc)) return r.lot;
+  }
+  return 1;
+}
+function roundUpToLot(qty, lot) {
+  if (lot <= 1 || qty <= 0) return qty;
+  return Math.ceil(qty / lot) * lot;
+}
+
 let planData    = [];   // processed rows
 let archiveData = [];   // deleted items
 let rawFile     = null; // for export
@@ -675,10 +702,13 @@ function processWMS(rows, filename) {
       const days  = n(r[col(C.DAYS)]);
       const upp   = Math.max(1, n(r[col(C.UPP)]) || 1);
 
-      // max-stock policy: produce up to max
+      // max-stock policy: produce up to max, rounded up to production lot size
+      const _fname = String(r[col(C.FNAME)] || '').trim();
+      const _desc  = String(r[col(C.DESC)]  || '').trim();
+      const lotSz  = getLotSize(_fname, _desc);
       const toProduceUnits = max > 0
-        ? Math.max(0, max - stock)
-        : Math.abs(n(r[col(C.DIFF_U)]));
+        ? roundUpToLot(Math.max(0, max - stock), lotSz)
+        : roundUpToLot(Math.abs(n(r[col(C.DIFF_U)])), lotSz);
       const toProduceBoxes = Math.round(toProduceUnits / upp);
       // Friday rule: only מיני קיש / מיני פשטידה may be produced on Friday
       const isFridayOk = /מיני\s*(קיש|פשטידה)/i.test(String(r[col(C.DESC)] || ''));
@@ -821,9 +851,9 @@ function renderGantt() {
   const fFam      = document.getElementById('fFam').value;
   const fUrg      = document.getElementById('fUrg').value;
   const fDay      = document.getElementById('fDay').value;
-  const hasGap    = Object.keys(gapData).length > 0;
-  const NCOLS     = hasGap ? 17 : 16; // +1 for הזמ' column when GAP loaded
-  const FIXED_COLS = hasGap ? 8 : 7;  // fixed cols before day columns
+  const hasGap     = Object.keys(gapData).length > 0;
+  const NCOLS      = hasGap ? 18 : 17; // +1 GAP col + 1 expected-stock col
+  const FIXED_COLS = hasGap ? 8  : 7;  // fixed cols before day columns
 
   // For each item, pick the effective day index based on view mode.
   // Next week: items with nextWeekDayIdx use it; others repeat on same weekday.
@@ -860,6 +890,7 @@ function renderGantt() {
     }).join('')}
     <th style="min-width:65px">סה"כ אריזות</th>
     <th style="min-width:52px">עגלות</th>
+    <th style="min-width:68px">מלאי<span class="th-date">לאחר ייצור</span></th>
     <th class="no-print" style="width:62px"></th>
   </tr>`;
 
@@ -894,13 +925,23 @@ function renderGantt() {
       .sort((a,b) => (effDay(a) - effDay(b)) || (b.toProduceBoxes - a.toProduceBoxes))
       .forEach(r => {
         const di = effDay(r);
+        const isFriOk = /מיני\s*(קיש|פשטידה)/i.test(r.desc);
+        const lot     = getLotSize(r.fname, r.desc);
         const dayCells = DAYS_HE.map((_,d) => {
-          if (d !== di) return `<td class="day-cell"></td>`;
-          const isToday = !isNext && d === todayIdx;
-          let content = r.toProduceBoxes.toLocaleString('he-IL');
+          if (d !== di) {
+            // Empty cell — click to move production here (current week only, Friday rule applies)
+            if (!isNext && !(d === 5 && !isFriOk)) {
+              return `<td class="day-cell day-cell-movable" onclick="moveItemDay('${r.id}',${d})" title="העבר ל${DAYS_HE[d]}">›</td>`;
+            }
+            return `<td class="day-cell"></td>`;
+          }
+          const isToday  = !isNext && d === todayIdx;
+          const cellId   = `dcell_${r.id}_${d}`;
+          let   content  = r.toProduceBoxes.toLocaleString('he-IL');
+          if (lot > 1) content = `<span class="lot-badge">×${lot}</span>${content}`;
           if (r.capacityMoved) content += `<span class="cap-badge" title="הוקדם — קיבולת יומית"> 🔀</span>`;
           if (r.capacityWarn)  content += `<span class="cap-badge" title="חריגת קיבולת!"> ⚠️</span>`;
-          return `<td class="${isToday?'day-cell day-active':'day-cell'}">${content}</td>`;
+          return `<td id="${cellId}" class="${isToday?'day-cell day-active':'day-cell'} day-cell-editable" onclick="editDayQty('${r.id}',${d})" title="לחץ לעריכת כמות">${content}</td>`;
         }).join('');
 
         const daysDisplay = r.days < 1
@@ -910,18 +951,32 @@ function renderGantt() {
         const minBoxes = Math.floor(r.min / Math.max(1, r.upp));
         const maxBoxes = Math.floor(r.max / Math.max(1, r.upp));
 
+        // Expected stock after production (net of open orders if GAP loaded)
+        const afterProd    = r.stock + r.toProduceUnits;
+        const openOrd      = r.openOrders || 0;
+        const netAfterProd = hasGap ? afterProd - openOrd : afterProd;
+        const expColor     = netAfterProd >= r.max  ? 'var(--green)'
+                           : netAfterProd >= r.min  ? 'var(--yellow)'
+                           : netAfterProd >= 0      ? 'var(--orange)'
+                           : 'var(--red)';
+        const expCell = `<td class="td-expected">
+          <span style="color:${expColor};font-weight:700">${netAfterProd.toLocaleString('he-IL')}</span>
+          ${hasGap && openOrd > 0 ? `<span class="exp-sub">ברוטו ${afterProd.toLocaleString('he-IL')}</span>` : ''}
+        </td>`;
+
         html += `<tr class="${urgClass[r.urgency]}">
           <td class="td-cat">${escH(r.fname)}</td>
           <td class="td-sku">${escH(r.sku)}</td>
           <td class="td-name">${escH(r.desc)}</td>
           <td class="td-num">${r.stock.toLocaleString('he-IL')}</td>
-          ${hasGap ? `<td class="td-num" style="${(r.openOrders||0)>r.stock?'color:var(--purple);font-weight:700':r.openOrders>0?'color:var(--text2)':''}">${r.openOrders>0?r.openOrders.toLocaleString('he-IL'):'—'}</td>` : ''}
+          ${hasGap ? `<td class="td-num" style="${openOrd>r.stock?'color:var(--purple);font-weight:700':openOrd>0?'color:var(--text2)':''}">${openOrd>0?openOrd.toLocaleString('he-IL'):'—'}</td>` : ''}
           <td class="td-minmax"><span>${r.min.toLocaleString('he-IL')}</span><span class="mm-boxes">${minBoxes} אר'</span></td>
           <td class="td-minmax"><span>${r.max.toLocaleString('he-IL')}</span><span class="mm-boxes">${maxBoxes} אר'</span></td>
           <td class="td-days">${daysDisplay}</td>
           ${dayCells}
           <td class="td-num" style="font-weight:600">${r.toProduceBoxes.toLocaleString('he-IL')}</td>
           <td class="td-num">${r.carts}</td>
+          ${expCell}
           <td class="td-actions no-print">
             <button class="act-btn act-edit" onclick="openEditModal('${r.id}')" title="עריכה">✏️</button>
             <button class="act-btn act-del"  onclick="deleteItem('${r.id}')"     title="העבר לארכיון">🗑️</button>
@@ -938,6 +993,7 @@ function renderGantt() {
       ${subDays}
       <td class="td-num">${g.total.toLocaleString('he-IL')}</td>
       <td class="td-num">${Math.floor(g.total/UNITS_PER_CART)}</td>
+      <td></td>
       <td class="no-print"></td>
     </tr>`;
 
@@ -954,6 +1010,7 @@ function renderGantt() {
     ${grandDayCells}
     <td class="day-cell">${grandTotal.toLocaleString('he-IL')}</td>
     <td class="day-cell">${Math.floor(grandTotal/UNITS_PER_CART)}</td>
+    <td></td>
     <td class="no-print"></td>
   </tr>`;
 
@@ -1060,7 +1117,8 @@ function recalcItem(item) {
   item.baseDayIdx     = item.dayIdx;
   const daysFloor     = Math.floor(item.days);
   item.nextWeekDayIdx = daysFloor >= 6 ? Math.min(daysFloor - 6, isFridayOk ? 5 : 4) : null;
-  item.toProduceUnits = item.max > 0 ? Math.max(0, item.max - item.stock) : 0;
+  const _lot = getLotSize(item.fname || '', item.desc || '');
+  item.toProduceUnits = item.max > 0 ? roundUpToLot(Math.max(0, item.max - item.stock), _lot) : 0;
   item.toProduceBoxes = Math.round(item.toProduceUnits / Math.max(1, item.upp));
   item.carts          = Math.floor(item.toProduceBoxes / UNITS_PER_CART);
   item.urgency        = item.stock === 0 ? 'zero' : item.stock < item.min ? 'low' : 'plan';
@@ -1075,14 +1133,17 @@ function updateCalc() {
   const upp   = Math.max(1, parseFloat(document.getElementById('f_upp').value) || 1);
   const days  = parseFloat(document.getElementById('f_days').value)  || 0;
   const desc  = document.getElementById('f_desc').value;
-  const units = max > 0 ? Math.max(0, max - stock) : 0;
-  const boxes = Math.round(units / upp);
-  const isFri = /מיני\s*(קיש|פשטידה)/i.test(desc);
+  const fname  = document.getElementById('f_fname').value;
+  const lotSzC = getLotSize(fname, desc);
+  const units  = max > 0 ? roundUpToLot(Math.max(0, max - stock), lotSzC) : 0;
+  const boxes  = Math.round(units / upp);
+  const isFri  = /מיני\s*(קיש|פשטידה)/i.test(desc);
   const dayIdx = Math.min(Math.max(Math.floor(days), 0), isFri ? 5 : 4);
   const wd = window._weekDates;
   const dayLabel = wd ? `${DAYS_HE[dayIdx]} ${wd[dayIdx].getDate()}/${wd[dayIdx].getMonth()+1}` : DAYS_HE[dayIdx];
+  const lotNote  = lotSzC > 1 ? ` <span style="font-size:10px;color:var(--text3)">(כפולות של ${lotSzC})</span>` : '';
   document.getElementById('formCalc').innerHTML =
-    `📦 <strong>${units.toLocaleString('he-IL')}</strong> יחידות לייצור &nbsp;|&nbsp; ` +
+    `📦 <strong>${units.toLocaleString('he-IL')}</strong> יחידות${lotNote} &nbsp;|&nbsp; ` +
     `<strong>${boxes.toLocaleString('he-IL')}</strong> אריזות &nbsp;|&nbsp; ` +
     `יום ייצור: <strong>${dayLabel}</strong>`;
 }
@@ -1388,6 +1449,51 @@ function renderCapacityBar() {
         }).join('')}
       </div>
     </div>`;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   INLINE GANTT EDITING
+══════════════════════════════════════════════════════════════ */
+function moveItemDay(id, newDay) {
+  const item = planData.find(r => r.id === id);
+  if (!item) return;
+  const isFri = /מיני\s*(קיש|פשטידה)/i.test(item.desc);
+  if (newDay === 5 && !isFri) { showToast('ביום שישי: רק מיני קיש / מיני פשטידה'); return; }
+  item.dayIdx         = newDay;
+  item.originalDayIdx = newDay;
+  item.baseDayIdx     = newDay; // lock new day as baseline
+  applyQuicheCapacity(planData);
+  renderStats();
+  renderGantt();
+}
+
+function editDayQty(id, d) {
+  const item   = planData.find(r => r.id === id);
+  if (!item) return;
+  const cellId = `dcell_${item.id}_${d}`;
+  const cell   = document.getElementById(cellId);
+  if (!cell) return;
+  const inp = document.createElement('input');
+  inp.type  = 'number';
+  inp.value = item.toProduceBoxes;
+  inp.min   = 0;
+  inp.style.cssText = 'width:56px;text-align:center;border:2px solid var(--blue2);border-radius:4px;padding:2px 4px;font-size:12px;font-weight:700;background:#fff;outline:none';
+  let done = false;
+  const save = () => {
+    if (done) return; done = true;
+    const boxes = Math.max(0, parseInt(inp.value) || 0);
+    item.toProduceBoxes = boxes;
+    item.toProduceUnits = boxes * Math.max(1, item.upp);
+    item.carts          = Math.floor(boxes / UNITS_PER_CART);
+    applyQuicheCapacity(planData);
+    renderStats();
+    renderGantt();
+  };
+  inp.onblur    = save;
+  inp.onkeydown = e => { if (e.key === 'Enter') inp.blur(); if (e.key === 'Escape') { done = true; renderGantt(); } };
+  cell.innerHTML = '';
+  cell.appendChild(inp);
+  setTimeout(() => { inp.focus(); inp.select(); }, 0);
 }
 
 /* ══════════════════════════════════════════════════════════════
