@@ -162,13 +162,24 @@ tr.row-critical:hover td{filter:brightness(.97)}
 /* Day cells */
 .day-cell{text-align:center;font-weight:700;font-size:12.5px;min-width:60px}
 .day-active{background:#e8f4ff!important;border:2px solid var(--blue2)!important;border-radius:4px;padding:5px 8px!important}
-/* Inline Gantt editing */
-.day-cell-editable{cursor:pointer;transition:filter .12s}
-.day-cell-editable:hover{filter:brightness(.93)}
-.day-has-val{background:#e8f4ff!important;border:2px solid var(--blue2)!important;border-radius:4px;padding:4px 6px!important}
+/* Inline Gantt editing — editable-mode cells */
+.gantt-edit-mode td.day-cell{
+  cursor:pointer;min-height:32px;position:relative;
+  background:rgba(37,99,235,.03);border:1px dashed var(--border2)!important;
+  transition:background .12s,border-color .12s
+}
+.gantt-edit-mode td.day-cell:hover{background:rgba(37,99,235,.09)!important;border-color:var(--blue2)!important}
+.gantt-edit-mode td.day-cell:empty::after,
+.gantt-edit-mode td.day-cell.day-empty::after{
+  content:'＋';color:var(--border2);font-size:14px;font-weight:400;
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center
+}
+.gantt-edit-mode td.day-cell:hover::after{color:var(--blue2)!important}
+.day-has-val{background:#dbeafe!important;border:2px solid var(--blue2)!important;border-radius:4px;padding:4px 6px!important;color:var(--blue)}
+.day-has-val:hover{background:#bfdbfe!important}
 /* Editable num cells (shipped / min / max) */
 .td-edit-click{cursor:pointer;text-decoration:underline dotted var(--border2);text-underline-offset:2px}
-.td-edit-click:hover{background:rgba(37,99,235,.05)!important}
+.td-edit-click:hover{background:rgba(37,99,235,.07)!important}
 /* Shipped cell */
 .td-shipped{text-align:center;font-size:12px;min-width:56px}
 /* Expected stock cell */
@@ -399,10 +410,13 @@ tr.grand-row .day-cell{font-size:13px}
     </div>
 
     <!-- Gantt Table -->
+    <div id="editHint" class="no-print" style="display:none;font-size:11.5px;color:var(--blue);background:var(--blue-light);border-radius:8px;padding:7px 14px;margin-bottom:8px;border:1px solid #bfdbfe">
+      ✎ &nbsp;לחץ על תא יום לעריכת כמות אריזות &nbsp;·&nbsp; לחץ על <strong>שולח / מינ' / מקס'</strong> לעריכה ישירה
+    </div>
     <div class="tbl-outer">
       <div class="tbl-scroll">
         <div class="print-header-inline" id="printHeaderInline" style="display:none"></div>
-        <table class="gantt" id="ganttTable">
+        <table class="gantt" id="ganttTable" style="border-collapse:collapse">
           <thead id="ganttHead"></thead>
           <tbody id="ganttBody"></tbody>
         </table>
@@ -896,6 +910,12 @@ function renderGantt() {
     return d >= 0 ? Math.min(Math.max(d, 0), cap) : r.originalDayIdx;
   };
 
+  // Toggle edit-mode class on table + show hint bar
+  const tbl  = document.getElementById('ganttTable');
+  const hint = document.getElementById('editHint');
+  if (tbl)  tbl.classList.toggle('gantt-edit-mode', isEditable);
+  if (hint) hint.style.display = isEditable ? '' : 'none';
+
   const rows = planData.filter(r => {
     if (!fFam || r.fname === fFam) {} else return false;
     if (!fUrg || r.urgency === fUrg) {} else return false;
@@ -966,7 +986,6 @@ function renderGantt() {
     g.items
       .sort((a,b) => (effDay(a) - effDay(b)) || (b.toProduceBoxes - a.toProduceBoxes))
       .forEach(r => {
-        const di = effDay(r);
         const lot  = getLotSize(r.fname, r.desc);
         // Day cells — all 6 cells editable when weekOffset=0; future weeks: single calc day
         const dayCells = DAYS_HE.map((_,d) => {
@@ -976,7 +995,7 @@ function renderGantt() {
           const cellId  = `dcell_${r.id}_${d}`;
           const hasV    = val > 0;
           const isTod   = weekOffset === 0 && d === todayIdx;
-          const cls     = `day-cell${hasV ? ' day-has-val' : ''}${isEditable ? ' day-cell-editable' : ''}${isTod && !hasV ? ' day-today-col' : ''}`;
+          const cls     = `day-cell${hasV ? ' day-has-val' : ' day-empty'}${isTod && !hasV ? ' day-today-col' : ''}`;
           let content   = '';
           if (hasV) {
             if (lot > 1) content += `<span class="lot-badge">×${lot}</span>`;
