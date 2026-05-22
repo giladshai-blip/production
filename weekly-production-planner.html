@@ -712,11 +712,13 @@ function renderGantt() {
   const fDay      = document.getElementById('fDay').value;
   const NCOLS     = 16; // 3 name + 1 stock + 1 min + 1 max + 1 days + 6 days + 2 totals + 1 actions
 
-  // For each item, pick the effective day index based on view mode
-  const effDay = r => isNext ? r.nextWeekDayIdx : r.dayIdx;
+  // For each item, pick the effective day index based on view mode.
+  // Next week: items with nextWeekDayIdx use it; others repeat on same weekday.
+  const effDay = r => isNext
+    ? (r.nextWeekDayIdx !== null ? r.nextWeekDayIdx : r.originalDayIdx)
+    : r.dayIdx;
 
   const rows = planData.filter(r => {
-    if (isNext && r.nextWeekDayIdx === null) return false;
     const d = effDay(r);
     return (!fFam || r.fname === fFam) &&
            (!fUrg || r.urgency === fUrg) &&
@@ -1164,8 +1166,12 @@ function renderCapacityBar() {
   const qItems = planData.filter(isQuicheIndividual);
   if (!qItems.length) { el.innerHTML = ''; return; }
 
+  const isNext = (window._viewMode === 'next');
+  const effDay = r => isNext
+    ? (r.nextWeekDayIdx !== null ? r.nextWeekDayIdx : r.originalDayIdx)
+    : r.dayIdx;
   const dayTotals = Array(6).fill(0);
-  qItems.forEach(item => { dayTotals[item.dayIdx] += item.carts; });
+  qItems.forEach(item => { dayTotals[effDay(item)] += item.carts; });
 
   const wd = window._weekDates;
   el.innerHTML = `
