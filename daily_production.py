@@ -47,13 +47,14 @@ RIGHT  = Alignment(horizontal="right",  vertical="center", wrap_text=True)
 # עמודות קובץ WMS
 COL_FAM        = "משפחה"
 COL_FAM_NAME   = "תאור משפחה"
-COL_SKU        = "מק\"ט"
+COL_SKU        = "מק'ט"
 COL_DESC       = "תאור מוצר"
 COL_STOCK      = "מלאי מרלוג ביח'"
-COL_MIN        = "מינימום מלאי"
+COL_MIN        = "מלאי מינימום"
+COL_MAX        = "מלאי מקסימום"
 COL_DIFF_U     = "הפרש לייצור ביחידות"
 COL_DIFF_B     = "הפרש לייצור באריזות"
-COL_DAYS_STOCK = "ימי מלאי ממוצעים"
+COL_DAYS_STOCK = "ימי מלאי"
 
 DAYS_HE = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי"]
 
@@ -107,16 +108,24 @@ def load_wms(path: str) -> pd.DataFrame:
 
 def filter_and_prepare(df: pd.DataFrame) -> pd.DataFrame:
     df_need = df[df[COL_DIFF_U] < 0].copy()
-    df_need["לייצור ביחידות"] = df_need[COL_DIFF_U].abs()
-    df_need["לייצור באריזות"] = df_need[COL_DIFF_B].abs()
-    if COL_STOCK not in df_need.columns:
-        df_need[COL_STOCK] = 0
-    if COL_MIN not in df_need.columns:
-        df_need[COL_MIN] = 0
+
+    # מדיניות: לשמר מלאי מקסימום — כמות לייצור = מקסימום פחות מלאי נוכחי
+    for col in [COL_STOCK, COL_MIN, COL_MAX]:
+        if col not in df_need.columns:
+            df_need[col] = 0
+        df_need[col] = pd.to_numeric(df_need[col], errors="coerce").fillna(0)
+
+    df_need["לייצור ביחידות"] = (df_need[COL_MAX] - df_need[COL_STOCK]).clip(lower=0)
+
+    # כמות באריזות: נסה להשתמש בעמודת אריזות אם קיימת, אחרת השתמש בהפרש המקורי
+    if COL_DIFF_B in df_need.columns and "כמות יח' באריזה" in df_need.columns:
+        units_per_pack = pd.to_numeric(df_need["כמות יח' באריזה"], errors="coerce").fillna(1).replace(0, 1)
+        df_need["לייצור באריזות"] = (df_need["לייצור ביחידות"] / units_per_pack).apply(lambda x: int(x) if x == x else 0)
+    else:
+        df_need["לייצור באריזות"] = df_need["לייצור ביחידות"]
+
     if COL_DAYS_STOCK not in df_need.columns:
         df_need[COL_DAYS_STOCK] = 0
-    df_need[COL_STOCK]      = pd.to_numeric(df_need[COL_STOCK],      errors="coerce").fillna(0)
-    df_need[COL_MIN]        = pd.to_numeric(df_need[COL_MIN],        errors="coerce").fillna(0)
     df_need[COL_DAYS_STOCK] = pd.to_numeric(df_need[COL_DAYS_STOCK], errors="coerce").fillna(0).astype(int)
     return df_need
 
