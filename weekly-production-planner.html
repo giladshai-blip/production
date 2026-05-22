@@ -96,7 +96,7 @@ button{cursor:pointer;font-family:inherit}
 .content{padding:20px 24px;max-width:1600px;margin:0 auto}
 
 /* Stats row */
-.stats-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px}
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
 .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;border-top:3px solid}
 .stat-card.s-blue{border-top-color:var(--blue2)}
 .stat-card.s-red{border-top-color:var(--red)}
@@ -153,6 +153,11 @@ tr.row-zero:hover td,tr.row-low:hover td,tr.row-plan:hover td{filter:brightness(
 .urg-zero  {background:var(--red-light);   color:var(--red)   }
 .urg-low   {background:var(--orange-light);color:var(--orange)}
 .urg-plan  {background:var(--yellow-light);color:var(--yellow)}
+.urg-critical{background:#ede9fe;color:var(--purple)}
+
+/* Critical row (orders exceed stock) */
+tr.row-critical   td{background:#faf5ff}
+tr.row-critical:hover td{filter:brightness(.97)}
 
 /* Day cells */
 .day-cell{text-align:center;font-weight:700;font-size:12.5px;min-width:60px}
@@ -327,6 +332,8 @@ tr.grand-row .day-cell{font-size:13px}
     </div>
     <div class="topbar-left">
       <button class="btn btn-white btn-sm" onclick="reloadFile()">📂 קובץ חדש</button>
+      <button class="btn btn-white btn-sm no-print" onclick="document.getElementById('gapInput').click()" title="טען קובץ GAP עם הזמנות פתוחות">📋 טען הזמנות</button>
+      <span id="gapStatus" style="display:none;font-size:11px;opacity:.8;background:rgba(124,58,237,.18);border-radius:6px;padding:3px 8px;color:#ede9fe"></span>
       <button class="btn btn-white btn-sm no-print" id="archiveBtn" style="display:none" onclick="openArchive()">🗄️ ארכיון</button>
       <button class="btn btn-white btn-sm no-print" onclick="window.print()">🖨️ הדפס</button>
       <button class="btn btn-white btn-sm no-print" onclick="saveHtmlFile()" title="שמור את כל התוכנית כקובץ HTML — ניתן לפתוח מחדש ללא WMS">💾 שמור HTML</button>
@@ -358,6 +365,7 @@ tr.grand-row .day-cell{font-size:13px}
       </select>
       <select class="fsel" id="fUrg" onchange="renderGantt()">
         <option value="">כל רמות הדחיפות</option>
+        <option value="critical">🟣 הזמנות עולות על מלאי</option>
         <option value="zero">🔴 מלאי אפס</option>
         <option value="low">🟠 מתחת מינימום</option>
         <option value="plan">🟡 תכנון</option>
@@ -369,6 +377,7 @@ tr.grand-row .day-cell{font-size:13px}
         <div class="leg"><div class="leg-dot" style="background:#ffd5d5"></div>מלאי אפס (דחוף)</div>
         <div class="leg"><div class="leg-dot" style="background:#ffecd5"></div>מתחת מינימום</div>
         <div class="leg"><div class="leg-dot" style="background:#fffde5"></div>תכנון</div>
+        <div class="leg" id="legCritical" style="display:none"><div class="leg-dot" style="background:#ede9fe;border:1px solid var(--purple)"></div>הזמנות עולות על מלאי</div>
       </div>
     </div>
 
@@ -388,6 +397,8 @@ tr.grand-row .day-cell{font-size:13px}
 
 <!-- Toast -->
 <div class="toast" id="toast"></div>
+<!-- Hidden GAP file input -->
+<input type="file" id="gapInput" accept=".xlsx,.xls" style="display:none">
 
 <!-- ══════════════════════════════════════════════════════════════
      ADD / EDIT MODAL
@@ -484,6 +495,7 @@ let planData    = [];   // processed rows
 let archiveData = [];   // deleted items
 let rawFile     = null; // for export
 let _editId     = null; // null=add mode, string=edit mode
+let gapData     = {}; // { sku: openOrdersQty } — loaded from GAP file
 
 /* ══════════════════════════════════════════════════════════════
    FILE HANDLING
@@ -551,6 +563,96 @@ function hideLoad() {
 }
 
 /* ══════════════════════════════════════════════════════════════
+   GAP FILE (OPEN ORDERS)
+══════════════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  const gi = document.getElementById('gapInput');
+  if (gi) gi.addEventListener('change', () => { if (gi.files[0]) loadGapFile(gi.files[0]); });
+});
+
+function loadGapFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb   = XLSX.read(e.target.result, {type:'array'});
+      const ws   = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {defval:''});
+      gapData    = processGAP(rows);
+      const cnt  = Object.keys(gapData).length;
+      const el   = document.getElementById('gapStatus');
+      if (el) { el.textContent = `📋 ${cnt} הזמנות`; el.style.display = ''; }
+      const leg = document.getElementById('legCritical');
+      if (leg) leg.style.display = '';
+      // Re-apply to current plan
+      if (planData.length) {
+        applyGapToItems(planData);
+        applyQuicheCapacity(planData);
+        renderStats();
+        renderGantt();
+      }
+      document.getElementById('gapInput').value = '';
+      showToast(`✅ GAP נטען — ${cnt} מוצרים עם הזמנות`);
+    } catch(err) {
+      showToast('❌ שגיאה בקריאת GAP: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function processGAP(rows) {
+  const normalize = s => String(s).trim().replace(/[""״']/g,"'");
+  const colMap = {};
+  if (rows.length) Object.keys(rows[0]).forEach(k => { colMap[normalize(k)] = k; });
+  const col = name => colMap[normalize(name)] || name;
+  const result = {};
+  rows.forEach(r => {
+    const sku = String(r[col("מק'ט")] || '').trim();
+    const qty = parseFloat(r[col('כמות בהזמנות')]) || 0;
+    if (sku && qty > 0) result[sku] = (result[sku] || 0) + qty;
+  });
+  return result;
+}
+
+function applyGapToItems(items) {
+  items.forEach(item => {
+    // Reset to base day (before any GAP or capacity adjustments)
+    const base = item.baseDayIdx ?? item.originalDayIdx ?? item.dayIdx;
+    item.dayIdx         = base;
+    item.originalDayIdx = base;
+    item.capacityMoved  = false;
+    item.capacityWarn   = false;
+
+    item.openOrders = gapData[item.sku] || 0;
+    item.netStock   = item.stock - item.openOrders;
+
+    // Recompute urgency — take worst of stock-based and net-stock-based
+    if (item.openOrders > 0 && item.netStock < 0) {
+      item.urgency        = 'critical';
+      item.dayIdx         = 0;
+      item.originalDayIdx = 0;
+    } else if (item.openOrders > 0) {
+      // Net stock OK or borderline — apply proportional day shift
+      if (item.stock > 0 && item.days > 0) {
+        const isFri    = /מיני\s*(קיש|פשטידה)/i.test(item.desc);
+        const effDays  = item.days * item.netStock / item.stock;
+        const adjDay   = Math.min(Math.max(Math.floor(effDays), 0), isFri ? 5 : 4);
+        item.dayIdx         = adjDay;
+        item.originalDayIdx = adjDay;
+      }
+      // Recompute urgency based on net stock
+      item.urgency = item.netStock <= 0  ? 'zero'
+                   : item.netStock < item.min ? 'low'
+                   : 'plan';
+    } else {
+      // No orders: base urgency from stock
+      item.urgency = item.stock === 0 ? 'zero'
+                   : item.stock < item.min ? 'low'
+                   : 'plan';
+    }
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════
    DATA PROCESSING
 ══════════════════════════════════════════════════════════════ */
 function n(v) { return parseFloat(v) || 0; }
@@ -599,12 +701,13 @@ function processWMS(rows, filename) {
         stock, min, max, days, upp,
         toProduceUnits, toProduceBoxes,
         carts: Math.floor(toProduceBoxes / UNITS_PER_CART),
-        dayIdx, originalDayIdx: dayIdx,
+        dayIdx, originalDayIdx: dayIdx, baseDayIdx: dayIdx,
         nextWeekDayIdx, urgency,
         capacityMoved: false, capacityWarn: false,
       };
     });
 
+  applyGapToItems(items);
   applyQuicheCapacity(items);
   return items;
 }
@@ -666,11 +769,13 @@ function buildPlanScreen() {
    STATS
 ══════════════════════════════════════════════════════════════ */
 function renderStats() {
-  const total  = planData.length;
-  const zeros  = planData.filter(r => r.urgency === 'zero').length;
-  const lows   = planData.filter(r => r.urgency === 'low').length;
-  const totBox = planData.reduce((s,r) => s + r.toProduceBoxes, 0);
-  const totCar = Math.floor(totBox / UNITS_PER_CART);
+  const total    = planData.length;
+  const crits    = planData.filter(r => r.urgency === 'critical').length;
+  const zeros    = planData.filter(r => r.urgency === 'zero').length;
+  const lows     = planData.filter(r => r.urgency === 'low').length;
+  const totBox   = planData.reduce((s,r) => s + r.toProduceBoxes, 0);
+  const totCar   = Math.floor(totBox / UNITS_PER_CART);
+  const hasGap   = Object.keys(gapData).length > 0;
 
   document.getElementById('statsRow').innerHTML = `
     <div class="stat-card s-blue">
@@ -678,6 +783,11 @@ function renderStats() {
       <div class="stat-val">${total}</div>
       <div class="stat-label">פריטים לייצור</div>
     </div>
+    ${hasGap ? `<div class="stat-card" style="border-top-color:var(--purple)">
+      <div class="stat-icon">🟣</div>
+      <div class="stat-val" style="color:var(--purple)">${crits}</div>
+      <div class="stat-label">הזמנות עולות מלאי</div>
+    </div>` : ''}
     <div class="stat-card s-red">
       <div class="stat-icon">🔴</div>
       <div class="stat-val">${zeros}</div>
@@ -711,7 +821,9 @@ function renderGantt() {
   const fFam      = document.getElementById('fFam').value;
   const fUrg      = document.getElementById('fUrg').value;
   const fDay      = document.getElementById('fDay').value;
-  const NCOLS     = 16; // 3 name + 1 stock + 1 min + 1 max + 1 days + 6 days + 2 totals + 1 actions
+  const hasGap    = Object.keys(gapData).length > 0;
+  const NCOLS     = hasGap ? 17 : 16; // +1 for הזמ' column when GAP loaded
+  const FIXED_COLS = hasGap ? 8 : 7;  // fixed cols before day columns
 
   // For each item, pick the effective day index based on view mode.
   // Next week: items with nextWeekDayIdx use it; others repeat on same weekday.
@@ -733,6 +845,7 @@ function renderGantt() {
     <th class="th-fixed" style="min-width:70px">מק"ט</th>
     <th class="th-fixed" style="min-width:160px">תאור מוצר</th>
     <th style="min-width:60px">מלאי</th>
+    ${hasGap ? `<th style="min-width:58px;color:#c4b5fd">הזמ'<span class="th-date">יחידות</span></th>` : ''}
     <th style="min-width:58px">מינ׳<span class="th-date">יח' / אר'</span></th>
     <th style="min-width:58px">מקס׳<span class="th-date">יח' / אר'</span></th>
     <th style="min-width:52px">ימי מלאי</th>
@@ -770,7 +883,7 @@ function renderGantt() {
   const grandDay = Array(6).fill(0);
   let grandTotal = 0;
   let html = '';
-  const urgClass = {zero:'row-zero', low:'row-low', plan:'row-plan'};
+  const urgClass = {critical:'row-critical', zero:'row-zero', low:'row-low', plan:'row-plan'};
 
   Object.values(groups).sort((a,b) => a.fam.localeCompare(b.fam)).forEach(g => {
     html += `<tr class="cat-row"><td colspan="${NCOLS}">◆ &nbsp;${escH(g.fname)}&nbsp;
@@ -802,6 +915,7 @@ function renderGantt() {
           <td class="td-sku">${escH(r.sku)}</td>
           <td class="td-name">${escH(r.desc)}</td>
           <td class="td-num">${r.stock.toLocaleString('he-IL')}</td>
+          ${hasGap ? `<td class="td-num" style="${(r.openOrders||0)>r.stock?'color:var(--purple);font-weight:700':r.openOrders>0?'color:var(--text2)':''}">${r.openOrders>0?r.openOrders.toLocaleString('he-IL'):'—'}</td>` : ''}
           <td class="td-minmax"><span>${r.min.toLocaleString('he-IL')}</span><span class="mm-boxes">${minBoxes} אר'</span></td>
           <td class="td-minmax"><span>${r.max.toLocaleString('he-IL')}</span><span class="mm-boxes">${maxBoxes} אר'</span></td>
           <td class="td-days">${daysDisplay}</td>
@@ -820,7 +934,7 @@ function renderGantt() {
       return `<td class="${isToday?'day-cell day-active':'day-cell'}">${v>0?v.toLocaleString('he-IL'):''}</td>`;
     }).join('');
     html += `<tr class="sub-row">
-      <td colspan="7" style="text-align:right;padding:7px 12px">סה"כ ${escH(g.fname)}</td>
+      <td colspan="${FIXED_COLS}" style="text-align:right;padding:7px 12px">סה"כ ${escH(g.fname)}</td>
       ${subDays}
       <td class="td-num">${g.total.toLocaleString('he-IL')}</td>
       <td class="td-num">${Math.floor(g.total/UNITS_PER_CART)}</td>
@@ -836,7 +950,7 @@ function renderGantt() {
     return `<td class="${isToday?'day-cell day-active':'day-cell'}">${v>0?v.toLocaleString('he-IL'):''}</td>`;
   }).join('');
   html += `<tr class="grand-row">
-    <td colspan="7" style="text-align:right;padding:10px 14px;font-size:13px">✦ &nbsp;סה"כ כולל</td>
+    <td colspan="${FIXED_COLS}" style="text-align:right;padding:10px 14px;font-size:13px">✦ &nbsp;סה"כ כולל</td>
     ${grandDayCells}
     <td class="day-cell">${grandTotal.toLocaleString('he-IL')}</td>
     <td class="day-cell">${Math.floor(grandTotal/UNITS_PER_CART)}</td>
@@ -864,8 +978,10 @@ function exportExcel() {
   const weekNum = isoWeek(today);
   aoa.push([`תוכנית ייצור שבועית — שבוע ${weekNum} — ${today.toLocaleDateString('he-IL')}`,...Array(10).fill('')]);
   const wd = window._weekDates;
+  const hasGapExp = Object.keys(gapData).length > 0;
   const dayHeaders = DAYS_HE.map((d,i) => wd ? `${d} ${wd[i].getDate()}/${wd[i].getMonth()+1}` : d);
-  aoa.push(['משפחה','מק"ט','תאור מוצר','מלאי','ימי מלאי',...dayHeaders,'סה"כ אריזות','עגלות']);
+  aoa.push(['משפחה','מק"ט','תאור מוצר','מלאי', ...(hasGapExp?["הזמ'"]:[]
+  ),'ימי מלאי',...dayHeaders,'סה"כ אריזות','עגלות']);
 
   const groups = {};
   planData.forEach(r => {
@@ -884,19 +1000,19 @@ function exportExcel() {
     g.items.sort((a,b) => a.dayIdx - b.dayIdx).forEach(r => {
       const days = Array(6).fill('');
       days[r.dayIdx] = r.toProduceBoxes;
-      aoa.push([r.fname, r.sku, r.desc, r.stock, r.days.toFixed(1), ...days, r.toProduceBoxes, r.carts]);
+      aoa.push([r.fname, r.sku, r.desc, r.stock, ...(hasGapExp?[r.openOrders||0]:[]), r.days.toFixed(1), ...days, r.toProduceBoxes, r.carts]);
     });
-    aoa.push([`סה"כ ${g.fname}`,'','','','',...g.dayTotals.map(v=>v||''), g.total, Math.floor(g.total/UNITS_PER_CART)]);
+    aoa.push([`סה"כ ${g.fname}`,'','','', ...(hasGapExp?['']:[]),'', ...g.dayTotals.map(v=>v||''), g.total, Math.floor(g.total/UNITS_PER_CART)]);
     g.dayTotals.forEach((v,d) => { grandDay[d] += v; });
     grandTotal += g.total;
   });
 
-  aoa.push(['סה"כ כולל','','','','',...grandDay.map(v=>v||''), grandTotal, Math.floor(grandTotal/UNITS_PER_CART)]);
+  aoa.push(['סה"כ כולל','','','', ...(hasGapExp?['']:[]),'', ...grandDay.map(v=>v||''), grandTotal, Math.floor(grandTotal/UNITS_PER_CART)]);
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
 
   // Column widths
-  ws['!cols'] = [22,10,32,10,10,...Array(6).fill(10),12,10].map(w=>({wch:w}));
+  ws['!cols'] = [22,10,32,10,...(hasGapExp?[10]:[]),10,...Array(6).fill(10),12,10].map(w=>({wch:w}));
 
   XLSX.utils.book_append_sheet(wb, ws, 'תוכנית ייצור');
   XLSX.writeFile(wb, `gantt_week${isoWeek(new Date())}.xlsx`);
@@ -941,6 +1057,7 @@ function recalcItem(item) {
   const isFridayOk = /מיני\s*(קיש|פשטידה)/i.test(item.desc);
   item.dayIdx         = Math.min(Math.max(Math.floor(item.days), 0), isFridayOk ? 5 : 4);
   item.originalDayIdx = item.dayIdx;
+  item.baseDayIdx     = item.dayIdx;
   const daysFloor     = Math.floor(item.days);
   item.nextWeekDayIdx = daysFloor >= 6 ? Math.min(daysFloor - 6, isFridayOk ? 5 : 4) : null;
   item.toProduceUnits = item.max > 0 ? Math.max(0, item.max - item.stock) : 0;
@@ -1031,6 +1148,7 @@ function saveItem() {
   }
 
   closeModal();
+  applyGapToItems(planData);
   applyQuicheCapacity(planData);
   renderStats();
   renderGantt();
@@ -1101,6 +1219,7 @@ function restoreItem(i) {
   planData.push(item);
   updateArchiveBtn();
   renderArchive();
+  applyGapToItems(planData);
   applyQuicheCapacity(planData);
   renderStats();
   renderGantt();
@@ -1127,7 +1246,7 @@ async function saveHtmlFile() {
 
   // Encode state as base64 inside a <meta> tag — zero risk of breaking HTML
   const stateB64  = btoa(unescape(encodeURIComponent(
-    JSON.stringify({ planData, archiveData })
+    JSON.stringify({ planData, archiveData, gapData })
   )));
   const metaTag   = `<meta name="__ps__" content="${stateB64}">`;
 
@@ -1174,8 +1293,18 @@ async function saveHtmlFile() {
     if (!Array.isArray(state.planData) || !state.planData.length) return;
     planData    = state.planData;
     archiveData = state.archiveData || [];
+    gapData     = state.gapData     || {};
+    applyGapToItems(planData);
     applyQuicheCapacity(planData);
     updateArchiveBtn();
+    // Restore GAP status indicator if GAP was saved
+    const gapCnt = Object.keys(gapData).length;
+    if (gapCnt > 0) {
+      const el  = document.getElementById('gapStatus');
+      if (el)  { el.textContent = `📋 ${gapCnt} הזמנות`; el.style.display = ''; }
+      const leg = document.getElementById('legCritical');
+      if (leg) leg.style.display = '';
+    }
     setTimeout(() => buildPlanScreen(), 0);
   } catch (_) {}
 }());
