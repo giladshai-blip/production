@@ -1125,36 +1125,32 @@ document.addEventListener('keydown', e => {
 async function saveHtmlFile() {
   if (!planData.length) { showToast('אין נתונים לשמירה — טען קובץ WMS קודם'); return; }
 
-  // Serialize state; escape </script> inside JSON to avoid breaking the tag
-  const stateJson = JSON.stringify({ planData, archiveData })
-    .replace(/<\/script>/gi, '<\\/script>');
-  const stateTag = `<script id="__ps__">window.__ps__=${stateJson};<\/script>`;
+  // Encode state as base64 inside a <meta> tag — zero risk of breaking HTML
+  const stateB64  = btoa(unescape(encodeURIComponent(
+    JSON.stringify({ planData, archiveData })
+  )));
+  const metaTag   = `<meta name="__ps__" content="${stateB64}">`;
 
   let html;
   try {
-    // fetch the original source so the saved file is identical to the
-    // original app (clean HTML, no rendered DOM artifacts)
     const resp = await fetch(location.href);
-    if (!resp.ok) throw new Error('fetch failed');
+    if (!resp.ok) throw new Error();
     html = await resp.text();
   } catch (_) {
-    // fallback: use outerHTML, but strip rendered dynamic content
+    // fallback: clean outerHTML
     html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
-    // clear rendered Gantt so it is rebuilt on open
     html = html.replace(/(<thead id="ganttHead">)[\s\S]*?(<\/thead>)/, '$1$2');
     html = html.replace(/(<tbody id="ganttBody">)[\s\S]*?(<\/tbody>)/, '$1$2');
     html = html.replace(/(<div\b[^>]*id="statsRow"[^>]*>)[\s\S]*?(<\/div>)/, '$1$2');
     html = html.replace(/(<div\b[^>]*id="capacityBar"[^>]*>)[\s\S]*?(<\/div>)/, '$1$2');
-    // reset screen visibility
     html = html.replace(/(<div\b[^>]*id="uploadScreen"\b[^>]*class=")[^"]*(")/, '$1screen active$2');
     html = html.replace(/(<div\b[^>]*id="planScreen"\b[^>]*)style="[^"]*"/, '$1');
-    // close any open modals
     html = html.replace(/class="modal-overlay open"/g, 'class="modal-overlay"');
   }
 
-  // Remove any previously embedded state and inject the fresh one
-  html = html.replace(/<script id="__ps__">[\s\S]*?<\/script>\s*/g, '');
-  html = html.replace('</head>', stateTag + '\n</head>');
+  // Remove any previous state meta and inject fresh one
+  html = html.replace(/<meta name="__ps__"[^>]*>\s*/g, '');
+  html = html.replace('</head>', metaTag + '\n</head>');
 
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
   const url  = URL.createObjectURL(blob);
@@ -1166,18 +1162,23 @@ async function saveHtmlFile() {
   a.click();
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1500);
-  showToast('✅ קובץ HTML נשמר — כל הפונקציונליות נשמרה');
+  showToast('✅ קובץ HTML נשמר');
 }
 
-// Auto-restore saved state (runs when opening a previously saved HTML file)
-if (window.__ps__ && Array.isArray(window.__ps__.planData) && window.__ps__.planData.length) {
-  planData    = window.__ps__.planData;
-  archiveData = window.__ps__.archiveData || [];
-  applyQuicheCapacity(planData);
-  updateArchiveBtn();
-  // Defer to let DOM finish loading
-  setTimeout(() => buildPlanScreen(), 0);
-}
+// Auto-restore: read state from <meta name="__ps__"> (set by saveHtmlFile)
+(function () {
+  const meta = document.querySelector('meta[name="__ps__"]');
+  if (!meta || !meta.content) return;
+  try {
+    const state = JSON.parse(decodeURIComponent(escape(atob(meta.content))));
+    if (!Array.isArray(state.planData) || !state.planData.length) return;
+    planData    = state.planData;
+    archiveData = state.archiveData || [];
+    applyQuicheCapacity(planData);
+    updateArchiveBtn();
+    setTimeout(() => buildPlanScreen(), 0);
+  } catch (_) {}
+}());
 
 /* ══════════════════════════════════════════════════════════════
    QUICHE CAPACITY  (13 carts / day)
