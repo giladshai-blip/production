@@ -209,6 +209,37 @@ tr.grand-row .day-cell{font-size:13px}
 /* ═══ ANIMATIONS ═════════════════════════════════════════════════ */
 @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 .anim{animation:fadeIn .3s ease}
+
+/* ═══ MODAL ═══════════════════════════════════════════════════════ */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.48);z-index:500;display:none;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.open{display:flex}
+.modal-dialog{background:#fff;border-radius:14px;width:540px;max-width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 16px 60px rgba(0,0,0,.32)}
+.modal-dialog.modal-wide{width:840px}
+.modal-header{display:flex;align-items:center;justify-content:space-between;padding:18px 22px 14px;border-bottom:1px solid var(--border)}
+.modal-header h3{font-size:15px;font-weight:700;color:var(--text)}
+.modal-close{background:none;border:none;font-size:20px;color:var(--text2);cursor:pointer;padding:2px 8px;border-radius:6px;line-height:1}
+.modal-close:hover{background:var(--surface2);color:var(--text)}
+.modal-body{padding:20px 22px}
+.modal-footer{display:flex;gap:10px;justify-content:flex-end;padding:14px 22px;border-top:1px solid var(--border)}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-wide{grid-column:1/-1}
+.form-group label{display:block;font-size:11.5px;font-weight:600;color:var(--text2);margin-bottom:5px}
+.form-group input{width:100%;background:var(--surface2);border:1.5px solid var(--border2);border-radius:8px;padding:8px 11px;font-size:13px;color:var(--text);outline:none;transition:border-color .2s;font-family:inherit}
+.form-group input:focus{border-color:var(--blue2);background:#fff}
+.form-calc{font-size:11px;color:var(--text2);margin-top:12px;background:var(--blue-light);padding:9px 13px;border-radius:7px;line-height:1.7}
+
+/* ═══ ROW ACTIONS ═════════════════════════════════════════════════ */
+.td-actions{text-align:center;white-space:nowrap;padding:3px 5px!important;width:62px}
+.act-btn{background:none;border:none;padding:4px 6px;border-radius:6px;cursor:pointer;font-size:13px;transition:background .15s;line-height:1}
+.act-btn:hover{background:var(--surface2)}
+.act-del:hover{background:var(--red-light)!important}
+
+/* ═══ ARCHIVE ═════════════════════════════════════════════════════ */
+.archive-item{display:flex;align-items:center;gap:10px;padding:11px 14px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:var(--surface2)}
+.archive-item-info{flex:1;min-width:0}
+.archive-info-name{font-size:13px;font-weight:600;color:var(--text)}
+.archive-info-sub{font-size:11px;color:var(--text2);margin-top:2px}
+.archive-empty{text-align:center;color:var(--text2);padding:40px;font-size:14px}
 </style>
 </head>
 <body>
@@ -275,8 +306,10 @@ tr.grand-row .day-cell{font-size:13px}
     </div>
     <div class="topbar-left">
       <button class="btn btn-white btn-sm" onclick="reloadFile()">📂 קובץ חדש</button>
+      <button class="btn btn-white btn-sm no-print" id="archiveBtn" style="display:none" onclick="openArchive()">🗄️ ארכיון</button>
       <button class="btn btn-white btn-sm no-print" onclick="window.print()">🖨️ הדפס</button>
       <button class="btn btn-white btn-sm no-print" onclick="exportExcel()">📥 ייצוא Excel</button>
+      <button class="btn btn-green btn-sm no-print" onclick="openAddModal()">＋ הוסף פריט</button>
     </div>
   </div>
 
@@ -327,6 +360,76 @@ tr.grand-row .day-cell{font-size:13px}
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
+<!-- ══════════════════════════════════════════════════════════════
+     ADD / EDIT MODAL
+══════════════════════════════════════════════════════════════ -->
+<div id="itemModal" class="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal-dialog">
+    <div class="modal-header">
+      <h3 id="modalTitle">הוסף פריט</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>משפחה (קוד)</label>
+          <input type="text" id="f_fam" placeholder="365">
+        </div>
+        <div class="form-group">
+          <label>תאור משפחה</label>
+          <input type="text" id="f_fname" placeholder="מגשי קישים" oninput="updateCalc()">
+        </div>
+        <div class="form-group">
+          <label>מק"ט</label>
+          <input type="text" id="f_sku" placeholder="12345">
+        </div>
+        <div class="form-group form-wide">
+          <label>תאור מוצר</label>
+          <input type="text" id="f_desc" placeholder="קיש פטריות 6 יח'" oninput="updateCalc()">
+        </div>
+        <div class="form-group">
+          <label>מלאי נוכחי</label>
+          <input type="number" id="f_stock" value="0" min="0" oninput="updateCalc()">
+        </div>
+        <div class="form-group">
+          <label>מלאי מינימום</label>
+          <input type="number" id="f_min" value="0" min="0" oninput="updateCalc()">
+        </div>
+        <div class="form-group">
+          <label>מלאי מקסימום</label>
+          <input type="number" id="f_max" value="0" min="0" oninput="updateCalc()">
+        </div>
+        <div class="form-group">
+          <label>יח' באריזה</label>
+          <input type="number" id="f_upp" value="1" min="1" oninput="updateCalc()">
+        </div>
+        <div class="form-group">
+          <label>ימי מלאי</label>
+          <input type="number" id="f_days" value="0" min="0" step="0.1" oninput="updateCalc()">
+        </div>
+      </div>
+      <div class="form-calc" id="formCalc"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">ביטול</button>
+      <button class="btn btn-primary" onclick="saveItem()">שמור פריט</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     ARCHIVE PANEL
+══════════════════════════════════════════════════════════════ -->
+<div id="archivePanel" class="modal-overlay" onclick="if(event.target===this)closeArchive()">
+  <div class="modal-dialog modal-wide">
+    <div class="modal-header">
+      <h3>🗄️ ארכיון פריטים מחוקים</h3>
+      <button class="modal-close" onclick="closeArchive()">✕</button>
+    </div>
+    <div class="modal-body" id="archiveBody"></div>
+  </div>
+</div>
+
 <script>
 /* ══════════════════════════════════════════════════════════════
    COLUMN CONSTANTS
@@ -347,8 +450,10 @@ const C = {
 const DAYS_HE = ['ראשון','שני','שלישי','רביעי','חמישי','שישי'];
 const UNITS_PER_CART = 10;
 
-let planData   = [];   // processed rows
-let rawFile    = null; // for export
+let planData    = [];   // processed rows
+let archiveData = [];   // deleted items
+let rawFile     = null; // for export
+let _editId     = null; // null=add mode, string=edit mode
 
 /* ══════════════════════════════════════════════════════════════
    FILE HANDLING
@@ -447,6 +552,7 @@ function processWMS(rows, filename) {
       const urgency = stock === 0 ? 'zero' : stock < min ? 'low' : 'plan';
 
       return {
+        id:     Math.random().toString(36).slice(2),
         fam:    String(r[col(C.FAM)]  || '').trim(),
         fname:  String(r[col(C.FNAME)]|| '').trim(),
         sku:    String(r[col(C.SKU)]  || '').trim(),
@@ -556,12 +662,13 @@ function renderStats() {
    GANTT RENDER
 ══════════════════════════════════════════════════════════════ */
 function renderGantt() {
-  const todayIdx  = window._todayIdx ?? 0;
-  const fFam      = document.getElementById('fFam').value;
-  const fUrg      = document.getElementById('fUrg').value;
-  const fDay      = document.getElementById('fDay').value;
+  const todayIdx = window._todayIdx ?? 0;
+  const fFam     = document.getElementById('fFam').value;
+  const fUrg     = document.getElementById('fUrg').value;
+  const fDay     = document.getElementById('fDay').value;
+  const NCOLS    = 14; // 5 fixed + 6 days + 2 totals + 1 actions
 
-  let rows = planData.filter(r =>
+  const rows = planData.filter(r =>
     (!fFam || r.fname === fFam) &&
     (!fUrg || r.urgency === fUrg) &&
     (fDay === '' || r.dayIdx === +fDay)
@@ -585,11 +692,12 @@ function renderGantt() {
     }).join('')}
     <th style="min-width:65px">סה"כ אריזות</th>
     <th style="min-width:55px">עגלות</th>
+    <th class="no-print" style="width:62px"></th>
   </tr>`;
 
   if (!rows.length) {
     document.getElementById('ganttBody').innerHTML =
-      `<tr><td colspan="11" class="empty"><span class="empty-icon">📭</span>אין פריטים התואמים לסינון</td></tr>`;
+      `<tr><td colspan="${NCOLS}" class="empty"><span class="empty-icon">📭</span>אין פריטים התואמים לסינון</td></tr>`;
     return;
   }
 
@@ -607,68 +715,65 @@ function renderGantt() {
   let grandTotal = 0;
   let html = '';
 
-  const urgClass = {zero:'row-zero',low:'row-low',plan:'row-plan'};
-  const urgBadge = u => `<span class="urg urg-${u}">${u==='zero'?'🔴 אפס':u==='low'?'🟠 נמוך':'🟡 תכנון'}</span>`;
+  const urgClass = {zero:'row-zero', low:'row-low', plan:'row-plan'};
 
   Object.values(groups).sort((a,b) => a.fam.localeCompare(b.fam)).forEach(g => {
-    // Category header
-    html += `<tr class="cat-row"><td colspan="11">◆ &nbsp;${escH(g.fname)}&nbsp; <span style="font-weight:400;font-size:11px;opacity:.7">(${escH(g.fam)})</span>
-      &nbsp;—&nbsp; <span style="font-size:11px">${g.items.length} פריטים</span></td></tr>`;
+    html += `<tr class="cat-row"><td colspan="${NCOLS}">◆ &nbsp;${escH(g.fname)}&nbsp;
+      <span style="font-weight:400;font-size:11px;opacity:.7">(${escH(g.fam)})</span>
+      &nbsp;—&nbsp;<span style="font-size:11px">${g.items.length} פריטים</span></td></tr>`;
 
-    // Product rows
     g.items
       .sort((a,b) => (a.dayIdx - b.dayIdx) || (b.toProduceBoxes - a.toProduceBoxes))
       .forEach(r => {
         const dayCells = DAYS_HE.map((_,d) => {
-          if (d !== r.dayIdx) return `<td class="day-cell ${d===todayIdx?'day-today-col-marker':''}"></td>`;
-          const cls = d === todayIdx ? 'day-cell day-active' : 'day-cell';
-          return `<td class="${cls}">${r.toProduceBoxes.toLocaleString('he-IL')}</td>`;
+          if (d !== r.dayIdx) return `<td class="day-cell"></td>`;
+          return `<td class="${d===todayIdx?'day-cell day-active':'day-cell'}">${r.toProduceBoxes.toLocaleString('he-IL')}</td>`;
         }).join('');
 
         const daysDisplay = r.days < 1
           ? `<span class="badge-days badge-zero">0</span>`
-          : `<span class="badge-days">${r.days.toFixed(1)}</span>`;
+          : `<span class="badge-days">${Number(r.days).toFixed(1)}</span>`;
 
         html += `<tr class="${urgClass[r.urgency]}">
-          <td class="td-cat td-fixed">${escH(r.fname)}</td>
-          <td class="td-sku td-fixed">${escH(r.sku)}</td>
-          <td class="td-name td-fixed">${escH(r.desc)}</td>
+          <td class="td-cat">${escH(r.fname)}</td>
+          <td class="td-sku">${escH(r.sku)}</td>
+          <td class="td-name">${escH(r.desc)}</td>
           <td class="td-num">${r.stock.toLocaleString('he-IL')}</td>
           <td class="td-days">${daysDisplay}</td>
           ${dayCells}
           <td class="td-num" style="font-weight:600">${r.toProduceBoxes.toLocaleString('he-IL')}</td>
           <td class="td-num">${r.carts}</td>
+          <td class="td-actions no-print">
+            <button class="act-btn act-edit" onclick="openEditModal('${r.id}')" title="עריכה">✏️</button>
+            <button class="act-btn act-del"  onclick="deleteItem('${r.id}')"     title="העבר לארכיון">🗑️</button>
+          </td>
         </tr>`;
       });
 
-    // Family subtotal
-    const subDays = g.dayTotals.map((v,d) => {
-      const cls = d === todayIdx ? 'day-cell day-active' : 'day-cell';
-      return `<td class="${cls}">${v > 0 ? v.toLocaleString('he-IL') : ''}</td>`;
-    }).join('');
-    const subCarts = Math.floor(g.total / UNITS_PER_CART);
+    const subDays = g.dayTotals.map((v,d) =>
+      `<td class="${d===todayIdx?'day-cell day-active':'day-cell'}">${v>0?v.toLocaleString('he-IL'):''}</td>`
+    ).join('');
     html += `<tr class="sub-row">
       <td colspan="5" style="text-align:right;padding:7px 12px">סה"כ ${escH(g.fname)}</td>
       ${subDays}
       <td class="td-num">${g.total.toLocaleString('he-IL')}</td>
-      <td class="td-num">${subCarts}</td>
+      <td class="td-num">${Math.floor(g.total/UNITS_PER_CART)}</td>
+      <td class="no-print"></td>
     </tr>`;
 
     g.dayTotals.forEach((v,d) => { grandDay[d] += v; });
     grandTotal += g.total;
   });
 
-  // Grand total
-  const grandDayCells = grandDay.map((v,d) => {
-    const cls = d === todayIdx ? 'day-cell day-active' : 'day-cell';
-    return `<td class="${cls}">${v > 0 ? v.toLocaleString('he-IL') : ''}</td>`;
-  }).join('');
-  const grandCarts = Math.floor(grandTotal / UNITS_PER_CART);
+  const grandDayCells = grandDay.map((v,d) =>
+    `<td class="${d===todayIdx?'day-cell day-active':'day-cell'}">${v>0?v.toLocaleString('he-IL'):''}</td>`
+  ).join('');
   html += `<tr class="grand-row">
     <td colspan="5" style="text-align:right;padding:10px 14px;font-size:13px">✦ &nbsp;סה"כ כולל</td>
     ${grandDayCells}
     <td class="day-cell">${grandTotal.toLocaleString('he-IL')}</td>
-    <td class="day-cell">${grandCarts}</td>
+    <td class="day-cell">${Math.floor(grandTotal/UNITS_PER_CART)}</td>
+    <td class="no-print"></td>
   </tr>`;
 
   document.getElementById('ganttBody').innerHTML = html;
@@ -760,6 +865,183 @@ function showToast(msg) {
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 3200);
 }
+
+/* ══════════════════════════════════════════════════════════════
+   ITEM CRUD
+══════════════════════════════════════════════════════════════ */
+function recalcItem(item) {
+  const isFridayOk = /מיני\s*(קיש|פשטידה)/i.test(item.desc);
+  item.dayIdx         = Math.min(Math.max(Math.floor(item.days), 0), isFridayOk ? 5 : 4);
+  item.toProduceUnits = item.max > 0 ? Math.max(0, item.max - item.stock) : 0;
+  item.toProduceBoxes = Math.round(item.toProduceUnits / Math.max(1, item.upp));
+  item.carts          = Math.floor(item.toProduceBoxes / UNITS_PER_CART);
+  item.urgency        = item.stock === 0 ? 'zero' : item.stock < item.min ? 'low' : 'plan';
+  return item;
+}
+
+function updateCalc() {
+  const stock = parseFloat(document.getElementById('f_stock').value) || 0;
+  const max   = parseFloat(document.getElementById('f_max').value)   || 0;
+  const upp   = Math.max(1, parseFloat(document.getElementById('f_upp').value) || 1);
+  const days  = parseFloat(document.getElementById('f_days').value)  || 0;
+  const desc  = document.getElementById('f_desc').value;
+  const units = max > 0 ? Math.max(0, max - stock) : 0;
+  const boxes = Math.round(units / upp);
+  const isFri = /מיני\s*(קיש|פשטידה)/i.test(desc);
+  const dayIdx = Math.min(Math.max(Math.floor(days), 0), isFri ? 5 : 4);
+  const wd = window._weekDates;
+  const dayLabel = wd ? `${DAYS_HE[dayIdx]} ${wd[dayIdx].getDate()}/${wd[dayIdx].getMonth()+1}` : DAYS_HE[dayIdx];
+  document.getElementById('formCalc').innerHTML =
+    `📦 <strong>${units.toLocaleString('he-IL')}</strong> יחידות לייצור &nbsp;|&nbsp; ` +
+    `<strong>${boxes.toLocaleString('he-IL')}</strong> אריזות &nbsp;|&nbsp; ` +
+    `יום ייצור: <strong>${dayLabel}</strong>`;
+}
+
+function openAddModal() {
+  _editId = null;
+  document.getElementById('modalTitle').textContent = 'הוסף פריט';
+  ['fam','fname','sku','desc'].forEach(f => document.getElementById('f_'+f).value = '');
+  document.getElementById('f_stock').value = 0;
+  document.getElementById('f_min').value   = 0;
+  document.getElementById('f_max').value   = 0;
+  document.getElementById('f_upp').value   = 1;
+  document.getElementById('f_days').value  = 0;
+  document.getElementById('formCalc').innerHTML = '';
+  document.getElementById('itemModal').classList.add('open');
+  setTimeout(() => document.getElementById('f_fname').focus(), 80);
+}
+
+function openEditModal(id) {
+  const item = planData.find(r => r.id === id);
+  if (!item) return;
+  _editId = id;
+  document.getElementById('modalTitle').textContent = 'עריכת פריט';
+  document.getElementById('f_fam').value   = item.fam;
+  document.getElementById('f_fname').value = item.fname;
+  document.getElementById('f_sku').value   = item.sku;
+  document.getElementById('f_desc').value  = item.desc;
+  document.getElementById('f_stock').value = item.stock;
+  document.getElementById('f_min').value   = item.min;
+  document.getElementById('f_max').value   = item.max;
+  document.getElementById('f_upp').value   = item.upp;
+  document.getElementById('f_days').value  = item.days;
+  updateCalc();
+  document.getElementById('itemModal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('itemModal').classList.remove('open');
+}
+
+function saveItem() {
+  const fname = document.getElementById('f_fname').value.trim();
+  const desc  = document.getElementById('f_desc').value.trim();
+  if (!fname || !desc) { showToast('⚠️ תאור משפחה ותאור מוצר הם שדות חובה'); return; }
+
+  const item = recalcItem({
+    fam:   document.getElementById('f_fam').value.trim(),
+    fname, desc,
+    sku:   document.getElementById('f_sku').value.trim(),
+    stock: parseFloat(document.getElementById('f_stock').value) || 0,
+    min:   parseFloat(document.getElementById('f_min').value)   || 0,
+    max:   parseFloat(document.getElementById('f_max').value)   || 0,
+    upp:   Math.max(1, parseFloat(document.getElementById('f_upp').value) || 1),
+    days:  parseFloat(document.getElementById('f_days').value)  || 0,
+  });
+
+  if (_editId) {
+    const idx = planData.findIndex(r => r.id === _editId);
+    if (idx >= 0) { item.id = _editId; planData[idx] = item; }
+  } else {
+    item.id = Math.random().toString(36).slice(2);
+    planData.push(item);
+  }
+
+  closeModal();
+  renderStats();
+  renderGantt();
+  showToast(_editId ? '✅ פריט עודכן' : '✅ פריט נוסף לתוכנית');
+}
+
+function deleteItem(id) {
+  const idx = planData.findIndex(r => r.id === id);
+  if (idx < 0) return;
+  const item = planData.splice(idx, 1)[0];
+  item.deletedAt = new Date().toISOString();
+  archiveData.unshift(item);
+  updateArchiveBtn();
+  renderStats();
+  renderGantt();
+  showToast('🗄️ פריט הועבר לארכיון');
+}
+
+function updateArchiveBtn() {
+  const btn = document.getElementById('archiveBtn');
+  if (!btn) return;
+  if (archiveData.length > 0) {
+    btn.style.display = '';
+    btn.textContent = `🗄️ ארכיון (${archiveData.length})`;
+  } else {
+    btn.style.display = 'none';
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ARCHIVE
+══════════════════════════════════════════════════════════════ */
+function openArchive() {
+  renderArchive();
+  document.getElementById('archivePanel').classList.add('open');
+}
+
+function closeArchive() {
+  document.getElementById('archivePanel').classList.remove('open');
+}
+
+function renderArchive() {
+  const body = document.getElementById('archiveBody');
+  if (!archiveData.length) {
+    body.innerHTML = '<div class="archive-empty">🗄️ הארכיון ריק</div>';
+    return;
+  }
+  body.innerHTML = archiveData.map((item, i) => `
+    <div class="archive-item">
+      <div class="archive-item-info">
+        <div class="archive-info-name">${escH(item.desc)}</div>
+        <div class="archive-info-sub">
+          ${escH(item.fname)} · ${escH(item.sku)} · ${item.toProduceBoxes} אריזות ·
+          ${DAYS_HE[item.dayIdx]} · נמחק ${new Date(item.deletedAt).toLocaleString('he-IL')}
+        </div>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="restoreItem(${i})">↩️ שחזר</button>
+      <button class="btn btn-sm no-print" style="background:var(--red-light);color:var(--red);border:none"
+        onclick="permDeleteItem(${i})">🗑️ מחק לצמיתות</button>
+    </div>
+  `).join('');
+}
+
+function restoreItem(i) {
+  const item = archiveData.splice(i, 1)[0];
+  delete item.deletedAt;
+  planData.push(item);
+  updateArchiveBtn();
+  renderArchive();
+  renderStats();
+  renderGantt();
+  showToast('↩️ פריט שוחזר לתוכנית');
+}
+
+function permDeleteItem(i) {
+  archiveData.splice(i, 1);
+  updateArchiveBtn();
+  renderArchive();
+  showToast('🗑️ פריט נמחק לצמיתות');
+}
+
+// Close modals on Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeModal(); closeArchive(); }
+});
 </script>
 </body>
 </html>
