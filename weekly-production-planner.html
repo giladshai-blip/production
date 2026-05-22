@@ -889,7 +889,6 @@ function renderGantt() {
   const fDay      = document.getElementById('fDay').value;
   const hasGap      = Object.keys(gapData).length > 0;
   const weekOffset  = window._weekOffset || 0;
-  const isEditable  = weekOffset === 0; // only current week is directly editable
   // Cols: משפחה מק"ט תאור מלאי שולח [הזמ'] מינ' מקס' ימי + 6 days + סה"כ עגלות מלאי_צפוי פעולות
   const FIXED_COLS  = hasGap ? 9 : 8;
   const NCOLS       = FIXED_COLS + 6 + 2 + 1 + 1; // fixed+days+2totals+expected+actions
@@ -913,14 +912,15 @@ function renderGantt() {
   // Toggle edit-mode class on table + show hint bar
   const tbl  = document.getElementById('ganttTable');
   const hint = document.getElementById('editHint');
-  if (tbl)  tbl.classList.toggle('gantt-edit-mode', isEditable);
-  if (hint) hint.style.display = isEditable ? '' : 'none';
+  if (tbl)  tbl.classList.add('gantt-edit-mode');
+  if (hint) hint.style.display = '';
 
   const rows = planData.filter(r => {
     if (!fFam || r.fname === fFam) {} else return false;
     if (!fUrg || r.urgency === fUrg) {} else return false;
     if (fDay === '') return true;
     if (weekOffset === 0) return (r.dayQtys[+fDay] || 0) > 0;
+    if (r.futureQtys?.[weekOffset]) return (r.futureQtys[weekOffset][+fDay] || 0) > 0;
     return effDay(r) === +fDay;
   });
 
@@ -964,9 +964,10 @@ function renderGantt() {
     const k = r.fam + '|' + r.fname;
     if (!groups[k]) groups[k] = {fam:r.fam, fname:r.fname, items:[], dayTotals:Array(6).fill(0), total:0};
     groups[k].items.push(r);
-    if (weekOffset === 0) {
-      r.dayQtys.forEach((v, d) => { groups[k].dayTotals[d] += v; });
-      groups[k].total += r.dayQtys.reduce((s,v) => s+v, 0);
+    const _wq = weekOffset === 0 ? r.dayQtys : (r.futureQtys?.[weekOffset] || null);
+    if (_wq) {
+      _wq.forEach((v, d) => { groups[k].dayTotals[d] += v; });
+      groups[k].total += _wq.reduce((s,v) => s+v, 0);
     } else {
       groups[k].dayTotals[effDay(r)] += r.toProduceBoxes;
       groups[k].total += r.toProduceBoxes;
@@ -989,9 +990,8 @@ function renderGantt() {
         const lot  = getLotSize(r.fname, r.desc);
         // Day cells — all 6 cells editable when weekOffset=0; future weeks: single calc day
         const dayCells = DAYS_HE.map((_,d) => {
-          const val     = weekOffset === 0
-            ? (r.dayQtys[d] || 0)
-            : (effDay(r) === d ? r.toProduceBoxes : 0);
+          const _wqd    = weekOffset === 0 ? r.dayQtys : (r.futureQtys?.[weekOffset] || null);
+          const val     = _wqd ? (_wqd[d] || 0) : (effDay(r) === d ? r.toProduceBoxes : 0);
           const cellId  = `dcell_${r.id}_${d}`;
           const hasV    = val > 0;
           const isTod   = weekOffset === 0 && d === todayIdx;
@@ -1003,9 +1003,7 @@ function renderGantt() {
             if (d === r.dayIdx && r.capacityMoved) content += ` <span class="cap-badge" title="הוקדם">🔀</span>`;
             if (d === r.dayIdx && r.capacityWarn)  content += ` <span class="cap-badge" title="חריגה">⚠️</span>`;
           }
-          return isEditable
-            ? `<td id="${cellId}" class="${cls}" onclick="editDayQty('${r.id}',${d})" title="לחץ לעריכה">${content}</td>`
-            : `<td class="${cls}">${content}</td>`;
+          return `<td id="${cellId}" class="${cls}" onclick="editDayQty('${r.id}',${d},${weekOffset})" title="לחץ לעריכה">${content}</td>`;
         }).join('');
 
         const daysDisplay = r.days < 1
@@ -1016,7 +1014,8 @@ function renderGantt() {
         const maxBoxes = Math.floor(r.max / Math.max(1, r.upp));
         const openOrd  = r.openOrders || 0;
         const shipped  = r.shipped   || 0;
-        const rowBoxes = weekOffset === 0 ? r.dayQtys.reduce((s,v)=>s+v,0) : r.toProduceBoxes;
+        const _wqr = weekOffset === 0 ? r.dayQtys : (r.futureQtys?.[weekOffset] || null);
+        const rowBoxes = _wqr ? _wqr.reduce((s,v)=>s+v,0) : r.toProduceBoxes;
 
         // Expected stock after production (units & boxes), net of shipped + orders
         const expUnits  = r.stock - shipped + rowBoxes * Math.max(1, r.upp) - openOrd;
@@ -1573,7 +1572,7 @@ function editMinMax(id, field) {
   setTimeout(() => { inp.focus(); inp.select(); }, 0);
 }
 
-function editDayQty(id, d) {
+function editDayQty(id, d, wo = 0) {
   const item   = planData.find(r => r.id === id);
   if (!item) return;
   if (!item.dayQtys) { item.dayQtys = Array(6).fill(0); item.dayQtys[item.dayIdx] = item.toProduceBoxes; }
@@ -1582,10 +1581,35 @@ function editDayQty(id, d) {
   if (!cell) return;
   const inp = document.createElement('input');
   inp.type  = 'number';
-  inp.value = item.dayQtys[d] || 0;
   inp.min   = 0;
   inp.style.cssText = 'width:56px;text-align:center;border:2px solid var(--blue2);border-radius:4px;padding:2px 4px;font-size:12px;font-weight:700;background:#fff;outline:none';
   let done = false;
+
+  if (wo > 0) {
+    // Future week — store in item.futureQtys[wo]
+    if (!item.futureQtys) item.futureQtys = {};
+    if (!item.futureQtys[wo]) {
+      const dFloor = Math.floor(item.days);
+      const isFri  = /מיני\s*(קיש|פשטידה)/i.test(item.desc);
+      const cd     = Math.min(Math.max(dFloor - wo * 6, 0), isFri ? 5 : 4);
+      item.futureQtys[wo] = Array(6).fill(0);
+      item.futureQtys[wo][cd] = item.toProduceBoxes;
+    }
+    inp.value = item.futureQtys[wo][d] || 0;
+    const saveFuture = () => {
+      if (done) return; done = true;
+      item.futureQtys[wo][d] = Math.max(0, parseInt(inp.value) || 0);
+      renderGantt();
+    };
+    inp.onblur    = saveFuture;
+    inp.onkeydown = e => { if (e.key === 'Enter') inp.blur(); if (e.key === 'Escape') { done = true; renderGantt(); } };
+    cell.innerHTML = '';
+    cell.appendChild(inp);
+    setTimeout(() => { inp.focus(); inp.select(); }, 0);
+    return;
+  }
+
+  inp.value = item.dayQtys[d] || 0;
   const save = () => {
     if (done) return; done = true;
     item.dayQtys[d]     = Math.max(0, parseInt(inp.value) || 0);
