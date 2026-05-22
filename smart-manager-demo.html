@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>מנהל חכם AI</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --bg2: #1a1d2e;
+  --bg3: #232740;
+  --border: #2e3355;
+  --text: #e2e8f0;
+  --text2: #8892b0;
+  --blue: #4f8ef7;
+  --purple: #8b5cf6;
+  --green: #10b981;
+  --red: #ef4444;
+  --orange: #f97316;
+  --yellow: #eab308;
+  --grad1: linear-gradient(135deg,#4f8ef7,#8b5cf6);
+  --grad2: linear-gradient(135deg,#10b981,#4f8ef7);
+  --grad3: linear-gradient(135deg,#f97316,#ef4444);
+  --shadow: 0 4px 24px rgba(0,0,0,.4);
+  --radius: 14px;
+}
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',system-ui,sans-serif}
+body{background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:var(--bg2)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* ── Layout ── */
+.shell{display:flex;height:100vh}
+aside{width:220px;background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;position:relative;z-index:10}
+main{flex:1;overflow-y:auto;padding:28px}
+
+/* ── Sidebar ── */
+.logo{padding:22px 18px 16px;border-bottom:1px solid var(--border)}
+.logo-row{display:flex;align-items:center;gap:10px}
+.logo-icon{width:36px;height:36px;background:var(--grad1);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.logo-text{font-size:15px;font-weight:700;background:var(--grad1);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+
+nav{padding:12px 10px;flex:1}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;cursor:pointer;font-size:13.5px;color:var(--text2);transition:all .2s;position:relative;margin-bottom:2px}
+.nav-item:hover{background:var(--bg3);color:var(--text)}
+.nav-item.active{background:linear-gradient(135deg,rgba(79,142,247,.2),rgba(139,92,246,.2));color:var(--blue);font-weight:600}
+.nav-item.active::before{content:'';position:absolute;right:0;top:20%;bottom:20%;width:3px;background:var(--grad1);border-radius:3px}
+.nav-icon{font-size:17px;width:22px;text-align:center}
+.badge{margin-right:auto;background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:20px;min-width:18px;text-align:center}
+
+.sidebar-footer{padding:14px 18px;border-top:1px solid var(--border);font-size:11px;color:var(--text2);line-height:1.7}
+
+/* ── Page header ── */
+.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
+.page-title{font-size:22px;font-weight:700}
+.page-sub{font-size:13px;color:var(--text2);margin-top:2px}
+
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .2s}
+.btn-primary{background:var(--grad1);color:#fff}
+.btn-primary:hover{opacity:.88;transform:translateY(-1px)}
+.btn-ghost{background:var(--bg3);color:var(--text2);border:1px solid var(--border)}
+.btn-ghost:hover{color:var(--text);border-color:var(--blue)}
+.btn-sm{padding:6px 12px;font-size:12px}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none!important}
+
+/* ── Stat cards ── */
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:18px;position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s}
+.card:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.card.c-blue::before{background:var(--grad1)}
+.card.c-green::before{background:var(--grad2)}
+.card.c-orange::before{background:var(--grad3)}
+.card.c-purple::before{background:linear-gradient(135deg,#8b5cf6,#ec4899)}
+.card-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:14px}
+.c-blue .card-icon{background:rgba(79,142,247,.15)}
+.c-green .card-icon{background:rgba(16,185,129,.15)}
+.c-orange .card-icon{background:rgba(249,115,22,.15)}
+.c-purple .card-icon{background:rgba(139,92,246,.15)}
+.card-val{font-size:28px;font-weight:700;line-height:1}
+.card-label{font-size:12px;color:var(--text2);margin-top:6px}
+.card-trend{font-size:11px;margin-top:8px;display:flex;align-items:center;gap:4px}
+.trend-up{color:var(--green)}
+.trend-dn{color:var(--red)}
+
+/* ── Charts area ── */
+.charts-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:24px}
+.chart-box{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:18px}
+.chart-title{font-size:13px;font-weight:600;color:var(--text2);margin-bottom:14px;display:flex;align-items:center;gap:6px}
+
+/* Bar chart */
+.bar-chart{display:flex;flex-direction:column;gap:10px}
+.bar-row{display:flex;align-items:center;gap:10px;font-size:12px}
+.bar-label{width:60px;text-align:left;color:var(--text2);flex-shrink:0}
+.bar-track{flex:1;background:var(--bg3);border-radius:4px;height:8px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;transition:width 1s cubic-bezier(.4,0,.2,1)}
+.bar-val{width:28px;text-align:right;color:var(--text2);flex-shrink:0}
+
+/* Donut */
+.donut-wrap{display:flex;align-items:center;gap:16px}
+.donut-svg{flex-shrink:0}
+.donut-legend{display:flex;flex-direction:column;gap:8px;font-size:12px}
+.legend-item{display:flex;align-items:center;gap:7px}
+.legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+
+/* Sparkline */
+.spark-wrap{position:relative}
+.spark-val{font-size:26px;font-weight:700;margin-bottom:4px}
+.spark-sub{font-size:11px;color:var(--text2);margin-bottom:12px}
+
+/* ── AI Priority list ── */
+.ai-list{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:24px}
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.section-title{font-size:14px;font-weight:600;display:flex;align-items:center;gap:7px}
+.ai-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.ai-item:last-child{border-bottom:none;padding-bottom:0}
+.ai-rank{font-size:18px;font-weight:700;color:var(--border);width:28px;flex-shrink:0}
+.ai-rank.top{color:var(--yellow)}
+.ai-info{flex:1;min-width:0}
+.ai-title{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ai-reason{font-size:11px;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ai-score-wrap{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.ai-score-bar{width:72px;background:var(--bg3);border-radius:4px;height:6px}
+.ai-score-fill{height:100%;border-radius:4px;background:var(--grad1);transition:width .8s ease}
+.ai-score-num{font-size:12px;color:var(--text2);width:22px;text-align:left}
+
+/* ── Priority badge ── */
+.pri{font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.5px}
+.pri-urgent{background:rgba(239,68,68,.18);color:#f87171}
+.pri-high{background:rgba(249,115,22,.18);color:#fb923c}
+.pri-medium{background:rgba(234,179,8,.18);color:#facc15}
+.pri-low{background:rgba(16,185,129,.18);color:#34d399}
+
+/* ── Status badge ── */
+.status{font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;cursor:pointer;transition:all .2s}
+.status-todo{background:rgba(136,146,176,.15);color:#8892b0}
+.status-in_progress{background:rgba(79,142,247,.15);color:#4f8ef7}
+.status-done{background:rgba(16,185,129,.15);color:#10b981}
+.status:hover{filter:brightness(1.3)}
+
+/* ── Table ── */
+.tbl-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:24px}
+.tbl-toolbar{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.search-box{flex:1;min-width:160px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 12px;font-size:13px;outline:none;transition:border .2s}
+.search-box:focus{border-color:var(--blue)}
+.search-box::placeholder{color:var(--text2)}
+select.filter{background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:8px;padding:7px 10px;font-size:12px;outline:none;cursor:pointer}
+select.filter:focus{border-color:var(--blue)}
+.tbl-count{font-size:12px;color:var(--text2);margin-right:auto}
+table{width:100%;border-collapse:collapse}
+th{text-align:right;padding:11px 16px;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.6px;background:var(--bg3);border-bottom:1px solid var(--border);cursor:pointer;user-select:none;white-space:nowrap}
+th:hover{color:var(--text)}
+td{padding:12px 16px;font-size:13px;border-bottom:1px solid rgba(46,51,85,.5)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(79,142,247,.04)}
+.td-title{font-weight:600;max-width:220px}
+.td-title small{display:block;font-size:11px;color:var(--text2);font-weight:400;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
+.td-actions{display:flex;gap:4px}
+.action-btn{background:none;border:none;color:var(--text2);cursor:pointer;padding:5px;border-radius:6px;font-size:14px;transition:all .2s}
+.action-btn:hover.edit{color:var(--blue);background:rgba(79,142,247,.12)}
+.action-btn:hover.del{color:var(--red);background:rgba(239,68,68,.12)}
+
+/* ── Alerts ── */
+.alerts-list{display:flex;flex-direction:column;gap:12px;margin-bottom:24px}
+.alert-card{background:var(--bg2);border-radius:var(--radius);padding:16px 18px;display:flex;gap:14px;align-items:flex-start;border-right:4px solid;transition:transform .2s}
+.alert-card:hover{transform:translateX(-2px)}
+.alert-urgent{border-color:var(--red);background:linear-gradient(135deg,rgba(239,68,68,.06),var(--bg2))}
+.alert-warning{border-color:var(--orange);background:linear-gradient(135deg,rgba(249,115,22,.06),var(--bg2))}
+.alert-info{border-color:var(--blue);background:linear-gradient(135deg,rgba(79,142,247,.06),var(--bg2))}
+.alert-icon{font-size:22px;flex-shrink:0;margin-top:1px}
+.alert-body{flex:1}
+.alert-row{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.alert-title{font-size:13px;font-weight:600}
+.alert-type{font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px}
+.type-urgent{background:rgba(239,68,68,.2);color:#f87171}
+.type-warning{background:rgba(249,115,22,.2);color:#fb923c}
+.type-info{background:rgba(79,142,247,.2);color:#60a5fa}
+.alert-msg{font-size:12px;color:var(--text2);line-height:1.5}
+.alert-time{font-size:11px;color:var(--border);margin-top:4px}
+.alert-actions{display:flex;gap:6px;flex-shrink:0}
+.unread-dot{width:8px;height:8px;background:var(--blue);border-radius:50%;margin-top:5px;flex-shrink:0;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ── AI Panel ── */
+.ai-section{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:20px}
+.ai-analysis-box{background:var(--bg3);border-radius:10px;padding:16px;font-size:13px;line-height:1.8;color:var(--text);white-space:pre-wrap;min-height:80px}
+.typing::after{content:'|';animation:blink .7s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.subtask-item{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:var(--bg3);border-radius:8px;margin-bottom:8px;animation:slideIn .3s ease}
+@keyframes slideIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+.subtask-num{width:22px;height:22px;background:var(--grad1);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+.subtask-text{font-size:13px}
+.subtask-desc{font-size:11px;color:var(--text2);margin-top:2px}
+
+/* ── Modal ── */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:100;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .25s}
+.modal-bg.open{opacity:1;pointer-events:all}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:18px;padding:26px;width:440px;max-width:95vw;transform:scale(.95);transition:transform .25s}
+.modal-bg.open .modal{transform:scale(1)}
+.modal-title{font-size:16px;font-weight:700;margin-bottom:20px}
+.form-group{margin-bottom:14px}
+label{display:block;font-size:12px;color:var(--text2);font-weight:600;margin-bottom:5px}
+.form-input{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 12px;font-size:13px;outline:none;transition:border .2s}
+.form-input:focus{border-color:var(--blue)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+
+/* ── Notification toast ── */
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-70px);background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 18px;font-size:13px;color:var(--text);z-index:200;box-shadow:var(--shadow);transition:transform .35s cubic-bezier(.34,1.56,.64,1);display:flex;align-items:center;gap:8px}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.toast-icon{font-size:16px}
+
+/* ── Loading spinner ── */
+.spinner{display:inline-block;width:15px;height:15px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Tabs ── */
+.tabs{display:flex;gap:4px;background:var(--bg3);padding:4px;border-radius:10px;margin-bottom:20px;width:fit-content}
+.tab{padding:7px 16px;border-radius:7px;font-size:13px;font-weight:500;cursor:pointer;color:var(--text2);transition:all .2s;border:none;background:none}
+.tab.active{background:var(--bg2);color:var(--text);box-shadow:0 2px 8px rgba(0,0,0,.3)}
+
+/* ── Page visibility ── */
+.page{display:none}.page.active{display:block}
+
+/* ── Responsive ── */
+@media(max-width:900px){
+  .cards{grid-template-columns:1fr 1fr}
+  .charts-row{grid-template-columns:1fr}
+}
+@media(max-width:600px){
+  aside{width:60px}.logo-text,.nav-item span{display:none}
+  .nav-item{justify-content:center;padding:12px 0}
+  .cards{grid-template-columns:1fr}
+}
+
+/* ── Animations ── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.page.active>*{animation:fadeUp .35s ease forwards}
+.glow{box-shadow:0 0 20px rgba(79,142,247,.25)}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- ══ SIDEBAR ══ -->
+<aside>
+  <div class="logo">
+    <div class="logo-row">
+      <div class="logo-icon">🤖</div>
+      <span class="logo-text">מנהל חכם AI</span>
+    </div>
+  </div>
+  <nav>
+    <div class="nav-item active" onclick="goTo('dashboard')">
+      <span class="nav-icon">📊</span><span>לוח בקרה</span>
+    </div>
+    <div class="nav-item" onclick="goTo('tasks')">
+      <span class="nav-icon">✅</span><span>משימות</span>
+    </div>
+    <div class="nav-item" onclick="goTo('ai')">
+      <span class="nav-icon">🧠</span><span>ניתוח AI</span>
+    </div>
+    <div class="nav-item" onclick="goTo('alerts')">
+      <span class="nav-icon">🔔</span><span>התראות</span>
+      <span class="badge" id="alertBadge">3</span>
+    </div>
+  </nav>
+  <div class="sidebar-footer" id="sidebarFooter">
+    <div id="sfTasks">0 משימות</div>
+    <div id="sfDone">0 הושלמו</div>
+  </div>
+</aside>
+
+<!-- ══ MAIN ══ -->
+<main>
+
+<!-- ── DASHBOARD ── -->
+<div class="page active" id="page-dashboard">
+  <div class="page-header">
+    <div>
+      <div class="page-title">לוח בקרה</div>
+      <div class="page-sub" id="dashDate"></div>
+    </div>
+    <button class="btn btn-primary" onclick="runAIPrioritize()" id="priBtn">
+      <span>⚡</span> תעדף עם AI
+    </button>
+  </div>
+
+  <!-- Stat cards -->
+  <div class="cards">
+    <div class="card c-blue">
+      <div class="card-icon">📋</div>
+      <div class="card-val" id="statTotal">0</div>
+      <div class="card-label">סה״כ משימות</div>
+      <div class="card-trend trend-up" id="statTotalTrend"></div>
+    </div>
+    <div class="card c-orange">
+      <div class="card-icon">🔥</div>
+      <div class="card-val" id="statUrgent">0</div>
+      <div class="card-label">משימות דחופות</div>
+      <div class="card-trend trend-dn" id="statUrgentTrend"></div>
+    </div>
+    <div class="card c-purple">
+      <div class="card-icon">⚙️</div>
+      <div class="card-val" id="statInProgress">0</div>
+      <div class="card-label">בביצוע כעת</div>
+      <div class="card-trend" id="statInProgressTrend"></div>
+    </div>
+    <div class="card c-green">
+      <div class="card-icon">✨</div>
+      <div class="card-val" id="statDone">0</div>
+      <div class="card-label">הושלמו</div>
+      <div class="card-trend trend-up" id="statDoneTrend"></div>
+    </div>
+  </div>
+
+  <!-- Charts row -->
+  <div class="charts-row">
+    <!-- Bar chart by category -->
+    <div class="chart-box">
+      <div class="chart-title">📁 משימות לפי קטגוריה</div>
+      <div class="bar-chart" id="catChart"></div>
+    </div>
+
+    <!-- Donut chart -->
+    <div class="chart-box">
+      <div class="chart-title">🎯 התפלגות סטטוס</div>
+      <div class="donut-wrap">
+        <svg class="donut-svg" width="100" height="100" viewBox="0 0 36 36" id="donutSvg">
+          <circle cx="18" cy="18" r="15.9155" fill="none" stroke="#2e3355" stroke-width="3"/>
+          <circle id="dTodo" cx="18" cy="18" r="15.9155" fill="none" stroke="#8892b0" stroke-width="3"
+            stroke-dasharray="0 100" stroke-linecap="round" transform="rotate(-90 18 18)" style="transition:stroke-dasharray 1s ease"/>
+          <circle id="dProg" cx="18" cy="18" r="15.9155" fill="none" stroke="#4f8ef7" stroke-width="3"
+            stroke-dasharray="0 100" stroke-linecap="round" transform="rotate(-90 18 18)" style="transition:stroke-dasharray 1s ease"/>
+          <circle id="dDone" cx="18" cy="18" r="15.9155" fill="none" stroke="#10b981" stroke-width="3"
+            stroke-dasharray="0 100" stroke-linecap="round" transform="rotate(-90 18 18)" style="transition:stroke-dasharray 1s ease"/>
+        </svg>
+        <div class="donut-legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#8892b0"></div><span id="dTodoLbl">לביצוע: 0</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:#4f8ef7"></div><span id="dProgLbl">בביצוע: 0</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div><span id="dDoneLbl">הושלם: 0</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Completion rate sparkline -->
+    <div class="chart-box">
+      <div class="chart-title">📈 קצב השלמה</div>
+      <div class="spark-val" id="compRate">0%</div>
+      <div class="spark-sub">מכלל המשימות</div>
+      <svg width="100%" height="60" id="sparkSvg" style="overflow:visible"></svg>
+    </div>
+  </div>
+
+  <!-- AI Priority list -->
+  <div class="ai-list">
+    <div class="section-header">
+      <div class="section-title">🤖 עדיפות AI — המשימות הקריטיות</div>
+      <span style="font-size:11px;color:var(--text2)" id="aiLastRun"></span>
+    </div>
+    <div id="aiPriorityList"></div>
+  </div>
+</div>
+
+<!-- ── TASKS ── -->
+<div class="page" id="page-tasks">
+  <div class="page-header">
+    <div>
+      <div class="page-title">ניהול משימות</div>
+      <div class="page-sub">כל המשימות שלך במקום אחד</div>
+    </div>
+    <button class="btn btn-primary" onclick="openModal()"><span>＋</span> משימה חדשה</button>
+  </div>
+
+  <div class="tbl-wrap">
+    <div class="tbl-toolbar">
+      <input class="search-box" placeholder="🔍 חיפוש משימה..." oninput="renderTable()" id="srch">
+      <select class="filter" onchange="renderTable()" id="fStatus">
+        <option value="">כל הסטטוסים</option>
+        <option value="todo">לביצוע</option>
+        <option value="in_progress">בביצוע</option>
+        <option value="done">הושלם</option>
+      </select>
+      <select class="filter" onchange="renderTable()" id="fPri">
+        <option value="">כל העדיפויות</option>
+        <option value="urgent">דחוף</option>
+        <option value="high">גבוה</option>
+        <option value="medium">בינוני</option>
+        <option value="low">נמוך</option>
+      </select>
+      <select class="filter" onchange="renderTable()" id="fCat">
+        <option value="">כל הקטגוריות</option>
+      </select>
+      <span class="tbl-count" id="tblCount"></span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th onclick="sortBy('title')">כותרת ▾</th>
+          <th onclick="sortBy('category')">קטגוריה</th>
+          <th onclick="sortBy('priority')">עדיפות</th>
+          <th onclick="sortBy('aiPriority')">ציון AI</th>
+          <th onclick="sortBy('dueDate')">מועד</th>
+          <th onclick="sortBy('status')">סטטוס</th>
+          <th>פעולות</th>
+        </tr>
+      </thead>
+      <tbody id="tasksTbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── AI PANEL ── -->
+<div class="page" id="page-ai">
+  <div class="page-header">
+    <div class="page-title">ניתוח AI</div>
+  </div>
+
+  <div class="ai-section">
+    <div class="section-title" style="margin-bottom:10px">🧠 ניתוח פרודוקטיביות חכם</div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:14px">AI ינתח את כל המשימות שלך ויספק תובנות, דפוסים והמלצות לשיפור.</p>
+    <button class="btn btn-primary" onclick="runAnalysis()" id="analyzeBtn"><span>🔍</span> נתח משימות</button>
+    <div class="ai-analysis-box" id="analysisBox" style="margin-top:16px;display:none"></div>
+  </div>
+
+  <div class="ai-section">
+    <div class="section-title" style="margin-bottom:10px">✨ פירוק אוטומטי לתת-משימות</div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:14px">בחר משימה וה-AI יפרק אותה לתת-משימות מעשיות.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <select class="filter" id="subtaskSelect" style="flex:1;min-width:200px;padding:9px 12px;font-size:13px">
+        <option value="">בחר משימה...</option>
+      </select>
+      <button class="btn btn-primary" onclick="runSubtasks()" id="subtaskBtn"><span>⚡</span> צור תת-משימות</button>
+    </div>
+    <div id="subtaskResult" style="margin-top:14px"></div>
+  </div>
+
+  <div class="ai-section" style="background:linear-gradient(135deg,rgba(79,142,247,.07),rgba(139,92,246,.07))">
+    <div class="section-title" style="margin-bottom:10px">💡 טיפים לשימוש יעיל</div>
+    <ul style="font-size:13px;color:var(--text2);line-height:2;padding-right:16px">
+      <li>הוסף תיאורים מפורטים למשימות לניתוח טוב יותר</li>
+      <li>הגדר מועדי אחרון — ה-AI לוקח בחשבון דחיפות זמן</li>
+      <li>הפעל "תעדף עם AI" לאחר הוספת משימות חדשות</li>
+      <li>השתמש בפירוק תת-משימות למשימות מורכבות</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ── ALERTS ── -->
+<div class="page" id="page-alerts">
+  <div class="page-header">
+    <div>
+      <div class="page-title">התראות חכמות</div>
+      <div class="page-sub">AI מנתח ומתריע על משימות קריטיות</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost btn-sm" onclick="markAllRead()">✓ סמן הכל כנקרא</button>
+      <button class="btn btn-primary" onclick="runGenerateAlerts()" id="genAlertsBtn"><span>🔔</span> ייצר התראות AI</button>
+    </div>
+  </div>
+  <div class="alerts-list" id="alertsList"></div>
+</div>
+
+</main>
+</div>
+
+<!-- ══ MODAL ══ -->
+<div class="modal-bg" id="modalBg" onclick="closeModalBg(event)">
+  <div class="modal">
+    <div class="modal-title" id="modalTitle">משימה חדשה</div>
+    <div class="form-group">
+      <label>כותרת *</label>
+      <input class="form-input" id="fTitle" placeholder="כותרת המשימה">
+    </div>
+    <div class="form-group">
+      <label>תיאור</label>
+      <textarea class="form-input" id="fDesc" rows="2" placeholder="תיאור קצר (אופציונלי)" style="resize:vertical"></textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>עדיפות</label>
+        <select class="form-input" id="fPriority">
+          <option value="low">נמוך</option>
+          <option value="medium" selected>בינוני</option>
+          <option value="high">גבוה</option>
+          <option value="urgent">דחוף</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>קטגוריה</label>
+        <input class="form-input" id="fCategory" placeholder="כללי">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>מועד אחרון</label>
+      <input class="form-input" type="date" id="fDue">
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">ביטול</button>
+      <button class="btn btn-primary" onclick="saveTask()" id="saveBtn">שמור</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TOAST ══ -->
+<div class="toast" id="toast">
+  <span class="toast-icon" id="toastIcon">✅</span>
+  <span id="toastMsg"></span>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════
+   DATA
+══════════════════════════════════════════════ */
+let tasks = [
+  {id:1,title:'עדכון מערכת CRM',description:'שדרוג גרסה ועדכון מודולים',category:'פיתוח',priority:'urgent',status:'in_progress',dueDate:'2025-05-24',aiPriority:94,aiReason:'מועד קרוב + השפעה עסקית גבוהה'},
+  {id:2,title:'דוח רבעוני Q2',description:'הכנת דוח מכירות',category:'מכירות',priority:'high',status:'todo',dueDate:'2025-05-28',aiPriority:87,aiReason:'דד-ליין שבועי, נדרש לפגישת הנהלה'},
+  {id:3,title:'קמפיין שיווקי יוני',description:'תכנון ויזואלי וקופי',category:'שיווק',priority:'high',status:'todo',dueDate:'2025-06-01',aiPriority:79,aiReason:'נדרש לפני תחילת החודש'},
+  {id:4,title:'גיבוי שרתים',description:'גיבוי שבועי לענן',category:'תשתית',priority:'medium',status:'done',dueDate:'2025-05-20',aiPriority:62,aiReason:'משימה שגרתית, הושלמה'},
+  {id:5,title:'ריאיון מועמד Frontend',description:'ראיון טכני + HR',category:'HR',priority:'medium',status:'todo',dueDate:'2025-05-26',aiPriority:71,aiReason:'לא ניתן לדחות, מועמד חיצוני'},
+  {id:6,title:'עיצוב מחדש אתר',description:'עיצוב Landing Page חדש',category:'עיצוב',priority:'low',status:'todo',dueDate:'2025-06-10',aiPriority:48,aiReason:'אין דחיפות עסקית מיידית'},
+  {id:7,title:'אינטגרציה Slack API',description:'חיבור התראות לערוץ Slack',category:'פיתוח',priority:'medium',status:'in_progress',dueDate:'2025-05-30',aiPriority:68,aiReason:'משפר זרימת עבודה צוותית'},
+  {id:8,title:'הדרכת עובדים חדשים',description:'אוריינטציה ל-3 עובדים חדשים',category:'HR',priority:'high',status:'todo',dueDate:'2025-05-27',aiPriority:82,aiReason:'עובדים ממתינים, חסימה לצוות'},
+];
+
+let alerts = [
+  {id:1,type:'urgent',title:'משימה בחריגת מועד',message:'עדכון מערכת CRM — המועד הוא מחר! נדרשת פעולה מיידית.',taskId:1,read:false,time:'לפני 5 דקות'},
+  {id:2,type:'warning',title:'3 משימות ללא הקצאה',message:'דוח רבעוני, קמפיין שיווקי והדרכת עובדים טרם הוקצו לאף אחד.',taskId:null,read:false,time:'לפני 20 דקות'},
+  {id:3,type:'info',title:'ציון AI עודכן',message:'תעדוף AI רץ — 8 משימות עודכנו עם ציון עדיפות חדש.',taskId:null,read:false,time:'לפני שעה'},
+];
+
+let editId = null;
+let sortKey = 'aiPriority', sortAsc = false;
+let nextId = 9;
+
+/* ══════════════════════════════════════════════
+   NAVIGATION
+══════════════════════════════════════════════ */
+function goTo(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if (page === 'tasks')   { renderTable(); populateCatFilter(); }
+  if (page === 'ai')      populateSubtaskSelect();
+  if (page === 'alerts')  renderAlerts();
+  if (page === 'dashboard') renderDashboard();
+}
+
+/* ══════════════════════════════════════════════
+   DASHBOARD
+══════════════════════════════════════════════ */
+function renderDashboard() {
+  // Date
+  document.getElementById('dashDate').textContent =
+    new Date().toLocaleDateString('he-IL',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+  const total = tasks.length;
+  const urgent = tasks.filter(t => t.priority === 'urgent' && t.status !== 'done').length;
+  const inProg = tasks.filter(t => t.status === 'in_progress').length;
+  const done   = tasks.filter(t => t.status === 'done').length;
+
+  animateVal('statTotal', total);
+  animateVal('statUrgent', urgent);
+  animateVal('statInProgress', inProg);
+  animateVal('statDone', done);
+
+  document.getElementById('statTotalTrend').textContent = '↑ ' + total + ' משימות פעילות';
+  document.getElementById('statDoneTrend').textContent  = total ? Math.round(done/total*100) + '% השלמה' : '';
+
+  // Completion rate
+  const rate = total ? Math.round(done/total*100) : 0;
+  document.getElementById('compRate').textContent = rate + '%';
+  renderSparkline(rate);
+
+  // Donut
+  renderDonut(
+    tasks.filter(t=>t.status==='todo').length,
+    inProg, done, total
+  );
+
+  // Category bar chart
+  renderCatChart();
+
+  // AI priority list
+  renderAIList();
+
+  // Sidebar footer
+  document.getElementById('sfTasks').textContent = total + ' משימות';
+  document.getElementById('sfDone').textContent  = done  + ' הושלמו';
+}
+
+function animateVal(id, target) {
+  const el = document.getElementById(id);
+  let cur = 0;
+  const step = Math.ceil(target / 20);
+  const t = setInterval(() => {
+    cur = Math.min(cur + step, target);
+    el.textContent = cur;
+    if (cur >= target) clearInterval(t);
+  }, 40);
+}
+
+function renderDonut(todo, prog, done, total) {
+  if (!total) { return; }
+  const r = 15.9155, circ = 2 * Math.PI * r;
+  const pTodo = todo/total, pProg = prog/total, pDone = done/total;
+  const dTodo = circ * pTodo, dProg = circ * pProg, dDone = circ * pDone;
+
+  const setArc = (id, dash, offset) => {
+    const el = document.getElementById(id);
+    el.style.strokeDasharray = `${dash} ${circ}`;
+    el.style.strokeDashoffset = -offset;
+    el.setAttribute('transform', `rotate(-90 18 18)`);
+  };
+
+  setTimeout(() => {
+    setArc('dTodo', dTodo, 0);
+    setArc('dProg', dProg, dTodo);
+    setArc('dDone', dDone, dTodo + dProg);
+  }, 100);
+
+  document.getElementById('dTodoLbl').textContent = `לביצוע: ${todo}`;
+  document.getElementById('dProgLbl').textContent = `בביצוע: ${prog}`;
+  document.getElementById('dDoneLbl').textContent = `הושלם: ${done}`;
+}
+
+function renderCatChart() {
+  const cats = {};
+  tasks.forEach(t => {
+    if (!cats[t.category]) cats[t.category] = {total:0,done:0};
+    cats[t.category].total++;
+    if (t.status==='done') cats[t.category].done++;
+  });
+  const max = Math.max(...Object.values(cats).map(c=>c.total), 1);
+  const colors = ['#4f8ef7','#8b5cf6','#10b981','#f97316','#ef4444','#eab308'];
+  document.getElementById('catChart').innerHTML =
+    Object.entries(cats).map(([cat,v], i) => `
+      <div class="bar-row">
+        <span class="bar-label">${cat}</span>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:0%;background:${colors[i%colors.length]}"
+            data-w="${Math.round(v.total/max*100)}"></div>
+        </div>
+        <span class="bar-val">${v.total}</span>
+      </div>`).join('');
+  setTimeout(() => {
+    document.querySelectorAll('.bar-fill').forEach(el =>
+      el.style.width = el.dataset.w + '%');
+  }, 100);
+}
+
+function renderSparkline(rate) {
+  const svg = document.getElementById('sparkSvg');
+  const w = svg.clientWidth || 200, h = 60;
+  const pts = Array.from({length:8},(_,i) =>
+    Math.max(0, Math.min(100, rate - 20 + i*5 + Math.random()*10 - 5)));
+  pts[7] = rate;
+  const xs = pts.map((_,i) => i/(pts.length-1)*w);
+  const ys = pts.map(v => h - v/100*h);
+  const path = xs.map((x,i)=>(i?'L':'M')+x+','+ys[i]).join(' ');
+  svg.innerHTML = `
+    <defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4f8ef7" stop-opacity=".3"/>
+      <stop offset="100%" stop-color="#4f8ef7" stop-opacity="0"/>
+    </linearGradient></defs>
+    <path d="${path} L${w},${h} L0,${h} Z" fill="url(#sg)"/>
+    <path d="${path}" fill="none" stroke="#4f8ef7" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="${xs[7]}" cy="${ys[7]}" r="4" fill="#4f8ef7"/>`;
+}
+
+function renderAIList() {
+  const top = [...tasks]
+    .filter(t => t.aiPriority && t.status !== 'done')
+    .sort((a,b) => b.aiPriority - a.aiPriority)
+    .slice(0,6);
+
+  if (!top.length) {
+    document.getElementById('aiPriorityList').innerHTML =
+      '<p style="font-size:13px;color:var(--text2)">לחץ "תעדף עם AI" לקבלת ניתוח חכם</p>';
+    return;
+  }
+  document.getElementById('aiPriorityList').innerHTML = top.map((t,i) => `
+    <div class="ai-item">
+      <span class="ai-rank ${i<3?'top':''}">#${i+1}</span>
+      <div class="ai-info">
+        <div class="ai-title">${t.title}</div>
+        <div class="ai-reason">${t.aiReason||''}</div>
+      </div>
+      <span class="pri pri-${t.priority}">${priLabel(t.priority)}</span>
+      <div class="ai-score-wrap">
+        <div class="ai-score-bar"><div class="ai-score-fill" style="width:${t.aiPriority}%"></div></div>
+        <span class="ai-score-num">${t.aiPriority}</span>
+      </div>
+    </div>`).join('');
+}
+
+/* ══════════════════════════════════════════════
+   TASKS TABLE
+══════════════════════════════════════════════ */
+function renderTable() {
+  const srch = document.getElementById('srch').value.toLowerCase();
+  const fSt  = document.getElementById('fStatus').value;
+  const fPr  = document.getElementById('fPri').value;
+  const fCt  = document.getElementById('fCat').value;
+
+  let rows = tasks.filter(t =>
+    (!srch || t.title.toLowerCase().includes(srch) || t.category.toLowerCase().includes(srch)) &&
+    (!fSt  || t.status   === fSt) &&
+    (!fPr  || t.priority === fPr) &&
+    (!fCt  || t.category === fCt)
+  ).sort((a,b) => {
+    const va = a[sortKey]??'', vb = b[sortKey]??'';
+    return sortAsc ? (va>vb?1:-1) : (va<vb?1:-1);
+  });
+
+  document.getElementById('tblCount').textContent = rows.length + ' משימות';
+  document.getElementById('tasksTbody').innerHTML = rows.length ? rows.map(t => `
+    <tr>
+      <td class="td-title">${t.title}<small>${t.description||''}</small></td>
+      <td><span style="font-size:12px;color:var(--text2)">${t.category}</span></td>
+      <td><span class="pri pri-${t.priority}">${priLabel(t.priority)}</span></td>
+      <td>
+        ${t.aiPriority!=null ? `
+          <div style="display:flex;align-items:center;gap:6px">
+            <div style="width:52px;background:var(--bg3);border-radius:3px;height:5px">
+              <div style="width:${t.aiPriority}%;height:100%;border-radius:3px;background:var(--grad1)"></div>
+            </div>
+            <span style="font-size:11px;color:var(--text2)">${t.aiPriority}</span>
+          </div>` : '<span style="color:var(--border)">—</span>'}
+      </td>
+      <td style="font-size:12px;color:var(--text2)">${t.dueDate ? fmtDate(t.dueDate) : '—'}</td>
+      <td>
+        <span class="status status-${t.status}" onclick="cycleStatus(${t.id})">${statusLabel(t.status)}</span>
+      </td>
+      <td>
+        <div class="td-actions">
+          <button class="action-btn edit" onclick="openModal(${t.id})" title="עריכה">✏️</button>
+          <button class="action-btn del"  onclick="deleteTask(${t.id})" title="מחיקה">🗑️</button>
+        </div>
+      </td>
+    </tr>`).join('') :
+    '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text2)">אין משימות התואמות לסינון</td></tr>';
+}
+
+function populateCatFilter() {
+  const cats = [...new Set(tasks.map(t => t.category))];
+  const sel = document.getElementById('fCat');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">כל הקטגוריות</option>' +
+    cats.map(c => `<option value="${c}" ${c===cur?'selected':''}>${c}</option>`).join('');
+}
+
+function sortBy(key) {
+  if (sortKey === key) sortAsc = !sortAsc;
+  else { sortKey = key; sortAsc = false; }
+  renderTable();
+}
+
+function cycleStatus(id) {
+  const t = tasks.find(t => t.id === id);
+  const next = {todo:'in_progress',in_progress:'done',done:'todo'};
+  t.status = next[t.status];
+  renderTable();
+  renderDashboard();
+  toast('✅', 'סטטוס עודכן ל-' + statusLabel(t.status));
+}
+
+function deleteTask(id) {
+  if (!confirm('למחוק משימה זו?')) return;
+  tasks = tasks.filter(t => t.id !== id);
+  renderTable();
+  renderDashboard();
+  toast('🗑️', 'המשימה נמחקה');
+}
+
+/* ══════════════════════════════════════════════
+   MODAL
+══════════════════════════════════════════════ */
+function openModal(id = null) {
+  editId = id;
+  document.getElementById('modalTitle').textContent = id ? 'עריכת משימה' : 'משימה חדשה';
+  const t = id ? tasks.find(t => t.id === id) : null;
+  document.getElementById('fTitle').value    = t?.title       || '';
+  document.getElementById('fDesc').value     = t?.description || '';
+  document.getElementById('fPriority').value = t?.priority    || 'medium';
+  document.getElementById('fCategory').value = t?.category    || '';
+  document.getElementById('fDue').value      = t?.dueDate     || '';
+  document.getElementById('modalBg').classList.add('open');
+  setTimeout(() => document.getElementById('fTitle').focus(), 300);
+}
+
+function closeModal() {
+  document.getElementById('modalBg').classList.remove('open');
+  editId = null;
+}
+
+function closeModalBg(e) {
+  if (e.target === document.getElementById('modalBg')) closeModal();
+}
+
+function saveTask() {
+  const title = document.getElementById('fTitle').value.trim();
+  if (!title) { document.getElementById('fTitle').style.borderColor='var(--red)'; return; }
+  document.getElementById('fTitle').style.borderColor = '';
+
+  const data = {
+    title,
+    description: document.getElementById('fDesc').value.trim(),
+    priority:    document.getElementById('fPriority').value,
+    category:    document.getElementById('fCategory').value.trim() || 'כללי',
+    dueDate:     document.getElementById('fDue').value || null,
+  };
+
+  if (editId) {
+    Object.assign(tasks.find(t => t.id === editId), data);
+    toast('✏️', 'המשימה עודכנה');
+  } else {
+    tasks.push({ id: nextId++, status:'todo', aiPriority:null, aiReason:null, ...data });
+    toast('✅', 'משימה חדשה נוצרה');
+  }
+
+  closeModal();
+  renderTable();
+  renderDashboard();
+  populateCatFilter();
+}
+
+/* ══════════════════════════════════════════════
+   AI FEATURES (simulated)
+══════════════════════════════════════════════ */
+function runAIPrioritize() {
+  const btn = document.getElementById('priBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> מחשב...';
+  setTimeout(() => {
+    tasks.forEach(t => {
+      if (t.status === 'done') return;
+      const base = {urgent:85,high:70,medium:50,low:30}[t.priority];
+      const due  = t.dueDate ? Math.max(0, 10 - daysUntil(t.dueDate)) * 2 : 0;
+      t.aiPriority = Math.min(99, Math.round(base + due + Math.random()*10 - 5));
+      t.aiReason   = genReason(t);
+    });
+    document.getElementById('aiLastRun').textContent = 'עודכן: ' + new Date().toLocaleTimeString('he-IL');
+    renderDashboard();
+    toast('🤖', 'תעדוף AI הושלם — ' + tasks.filter(t=>t.aiPriority).length + ' משימות עודכנו');
+    btn.disabled = false;
+    btn.innerHTML = '<span>⚡</span> תעדף עם AI';
+    document.getElementById('alertBadge').textContent = alerts.filter(a=>!a.read).length || '';
+  }, 1800);
+}
+
+function runAnalysis() {
+  const btn = document.getElementById('analyzeBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> מנתח...';
+  const box = document.getElementById('analysisBox');
+  box.style.display = 'block';
+  box.className = 'ai-analysis-box typing';
+  box.textContent = '';
+
+  const analysis = buildAnalysis();
+  let i = 0;
+  const interval = setInterval(() => {
+    box.textContent += analysis[i++];
+    if (i >= analysis.length) {
+      clearInterval(interval);
+      box.className = 'ai-analysis-box';
+      btn.disabled = false;
+      btn.innerHTML = '<span>🔍</span> נתח שוב';
+    }
+  }, 18);
+}
+
+function buildAnalysis() {
+  const total = tasks.length, done = tasks.filter(t=>t.status==='done').length;
+  const urgent = tasks.filter(t=>t.priority==='urgent'&&t.status!=='done').length;
+  const cats = [...new Set(tasks.map(t=>t.category))];
+  return `📊 ניתוח פרודוקטיביות — ${new Date().toLocaleDateString('he-IL')}
+
+תובנות עיקריות:
+• יש לך ${total} משימות, ${done} הושלמו (${Math.round(done/total*100)}% השלמה)
+• ${urgent} משימות דחופות ממתינות לטיפול מיידי
+• הקטגוריה הפעילה ביותר: ${cats[0]} עם ${tasks.filter(t=>t.category===cats[0]).length} משימות
+
+דפוסים שזוהו:
+• רוב המשימות הדחופות שייכות לקטגוריית "פיתוח" ו-"מכירות"
+• ישנן ${tasks.filter(t=>!t.dueDate).length} משימות ללא מועד אחרון — מומלץ להגדיר
+• ממוצע ציון AI: ${Math.round(tasks.filter(t=>t.aiPriority).reduce((s,t)=>s+t.aiPriority,0)/Math.max(1,tasks.filter(t=>t.aiPriority).length))}
+
+המלצות:
+1. טפל ב-${urgent} המשימות הדחופות לפני כל דבר אחר
+2. הגדר מועדי אחרון לכל המשימות ללא תאריך
+3. שקול לפצל משימות עם ציון AI > 80 לתת-משימות`;
+}
+
+function populateSubtaskSelect() {
+  const sel = document.getElementById('subtaskSelect');
+  sel.innerHTML = '<option value="">בחר משימה...</option>' +
+    tasks.filter(t=>t.status!=='done').map(t =>
+      `<option value="${t.id}">${t.title}</option>`).join('');
+}
+
+function runSubtasks() {
+  const id = +document.getElementById('subtaskSelect').value;
+  if (!id) return;
+  const task = tasks.find(t => t.id === id);
+  const btn = document.getElementById('subtaskBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> מייצר...';
+
+  setTimeout(() => {
+    const subs = genSubtasks(task);
+    document.getElementById('subtaskResult').innerHTML =
+      `<p style="font-size:13px;font-weight:600;color:var(--green);margin-bottom:10px">✅ נוצרו ${subs.length} תת-משימות:</p>` +
+      subs.map((s,i) => `
+        <div class="subtask-item">
+          <div class="subtask-num">${i+1}</div>
+          <div>
+            <div class="subtask-text">${s.title}</div>
+            <div class="subtask-desc">${s.desc}</div>
+          </div>
+        </div>`).join('');
+
+    subs.forEach(s => tasks.push({
+      id: nextId++, title: s.title, description: s.desc,
+      category: task.category, priority: 'medium',
+      status:'todo', dueDate:task.dueDate,
+      aiPriority:null, aiReason:'תת-משימה של: '+task.title
+    }));
+
+    toast('✨', 'תת-משימות נוצרו ונוספו לרשימה');
+    btn.disabled = false;
+    btn.innerHTML = '<span>⚡</span> צור תת-משימות';
+  }, 2000);
+}
+
+function runGenerateAlerts() {
+  const btn = document.getElementById('genAlertsBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> מנתח...';
+  setTimeout(() => {
+    alerts = generateSmartAlerts();
+    renderAlerts();
+    updateAlertBadge();
+    toast('🔔', 'נוצרו ' + alerts.length + ' התראות חדשות');
+    btn.disabled = false;
+    btn.innerHTML = '<span>🔔</span> ייצר התראות AI';
+  }, 1600);
+}
+
+function generateSmartAlerts() {
+  const result = [];
+  const overdue = tasks.filter(t => t.dueDate && daysUntil(t.dueDate) <= 1 && t.status !== 'done');
+  if (overdue.length) result.push({
+    id: Date.now(), type:'urgent',
+    title: overdue.length + ' משימות בסכנת חריגת מועד',
+    message: overdue.map(t=>t.title).join(', ') + ' — נדרשת פעולה מיידית',
+    taskId: overdue[0].id, read:false, time:'עכשיו'
+  });
+  const noDate = tasks.filter(t => !t.dueDate && t.status !== 'done');
+  if (noDate.length) result.push({
+    id: Date.now()+1, type:'warning',
+    title: noDate.length + ' משימות ללא מועד אחרון',
+    message: 'מומלץ להגדיר מועדים כדי לשפר את תכנון העבודה',
+    taskId:null, read:false, time:'עכשיו'
+  });
+  const highAI = tasks.filter(t => t.aiPriority > 80 && t.status === 'todo');
+  if (highAI.length) result.push({
+    id: Date.now()+2, type:'warning',
+    title: 'משימות עם ציון AI גבוה ממתינות',
+    message: highAI.map(t=>t.title).join(', ') + ' — דורשות תשומת לב',
+    taskId: highAI[0].id, read:false, time:'עכשיו'
+  });
+  result.push({
+    id: Date.now()+3, type:'info',
+    title: 'ניתוח שבועי הושלם',
+    message: `${tasks.length} משימות נסרקו. ${tasks.filter(t=>t.status==='done').length} הושלמו השבוע.`,
+    taskId:null, read:false, time:'עכשיו'
+  });
+  return result;
+}
+
+/* ══════════════════════════════════════════════
+   ALERTS
+══════════════════════════════════════════════ */
+function renderAlerts() {
+  const icons = {urgent:'🚨',warning:'⚠️',info:'ℹ️'};
+  document.getElementById('alertsList').innerHTML = alerts.length ?
+    alerts.map(a => `
+      <div class="alert-card alert-${a.type}" id="alert-${a.id}">
+        ${!a.read ? '<div class="unread-dot"></div>' : '<div style="width:8px"></div>'}
+        <div class="alert-icon">${icons[a.type]||'ℹ️'}</div>
+        <div class="alert-body">
+          <div class="alert-row">
+            <span class="alert-title">${a.title}</span>
+            <span class="alert-type type-${a.type}">${a.type==='urgent'?'דחוף':a.type==='warning'?'אזהרה':'מידע'}</span>
+          </div>
+          <div class="alert-msg">${a.message}</div>
+          <div class="alert-time">${a.time}</div>
+        </div>
+        <div class="alert-actions">
+          ${!a.read ? `<button class="btn btn-ghost btn-sm" onclick="markRead(${a.id})">✓</button>` : ''}
+          <button class="btn btn-ghost btn-sm" onclick="removeAlert(${a.id})" style="color:var(--red)">✕</button>
+        </div>
+      </div>`).join('') :
+    '<div style="text-align:center;padding:50px;color:var(--text2);font-size:14px">אין התראות כרגע</div>';
+  updateAlertBadge();
+}
+
+function markRead(id) {
+  const a = alerts.find(a => a.id === id);
+  if (a) a.read = true;
+  renderAlerts();
+}
+
+function markAllRead() {
+  alerts.forEach(a => a.read = true);
+  renderAlerts();
+  toast('✓', 'כל ההתראות סומנו כנקראו');
+}
+
+function removeAlert(id) {
+  alerts = alerts.filter(a => a.id !== id);
+  renderAlerts();
+}
+
+function updateAlertBadge() {
+  const n = alerts.filter(a => !a.read).length;
+  document.getElementById('alertBadge').textContent = n || '';
+  document.getElementById('alertBadge').style.display = n ? '' : 'none';
+}
+
+/* ══════════════════════════════════════════════
+   HELPERS
+══════════════════════════════════════════════ */
+function priLabel(p) { return {urgent:'דחוף',high:'גבוה',medium:'בינוני',low:'נמוך'}[p]||p; }
+function statusLabel(s) { return {todo:'לביצוע',in_progress:'בביצוע',done:'הושלם'}[s]||s; }
+function fmtDate(d) { return new Date(d+'T00:00').toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit'}); }
+function daysUntil(d) { return Math.ceil((new Date(d+'T00:00') - new Date()) / 86400000); }
+
+function genReason(t) {
+  if (t.priority === 'urgent') return 'עדיפות גבוהה + מועד קרוב';
+  if (t.dueDate && daysUntil(t.dueDate) <= 3) return 'מועד אחרון בעוד ' + daysUntil(t.dueDate) + ' ימים';
+  if (t.priority === 'high')   return 'השפעה עסקית משמעותית';
+  return 'משימה שגרתית, ניתן לתכנן';
+}
+
+function genSubtasks(task) {
+  const maps = {
+    'פיתוח': [
+      {title:'כתיבת מפרט טכני',desc:'הגדרת ארכיטקטורה ו-API'},
+      {title:'פיתוח הלוגיקה',desc:'מימוש בקוד + בדיקות יחידה'},
+      {title:'Code Review',desc:'סקירת קוד על ידי עמית'},
+      {title:'פריסה לסביבת Staging',desc:'בדיקה לפני Production'},
+    ],
+    'שיווק': [
+      {title:'מחקר קהל יעד',desc:'ניתוח פרסונות ומתחרים'},
+      {title:'כתיבת קופי',desc:'טקסטים לפרסומות ולדפים'},
+      {title:'עיצוב ויזואלים',desc:'בנר, תמונות ו-Stories'},
+      {title:'הגדרת קמפיין',desc:'קביעת תקציב, טרגוט והפצה'},
+    ],
+    'HR': [
+      {title:'הכנת שאלות ריאיון',desc:'שאלות טכניות ו-HR'},
+      {title:'תיאום לוחות זמנים',desc:'שליחת הזמנה למועמד'},
+      {title:'ביצוע הריאיון',desc:'ריאיון טכני ואישי'},
+      {title:'משוב והחלטה',desc:'כתיבת סיכום ומשוב לצוות'},
+    ],
+  };
+  return (maps[task.category] || [
+    {title:'הגדרת מטרות',desc:'מה נדרש כדי להשלים את המשימה'},
+    {title:'ביצוע עיקרי',desc:'עבודה על ליבת המשימה'},
+    {title:'בדיקה וסקירה',desc:'וידוא איכות ותוצאה'},
+    {title:'תיעוד ומסירה',desc:'סיום רשמי ועדכון הצוות'},
+  ]).slice(0,4);
+}
+
+function toast(icon, msg) {
+  const t = document.getElementById('toast');
+  document.getElementById('toastIcon').textContent = icon;
+  document.getElementById('toastMsg').textContent  = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+/* ══════════════════════════════════════════════
+   KEYBOARD
+══════════════════════════════════════════════ */
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+  if (e.key === 'Enter' && document.getElementById('modalBg').classList.contains('open')) saveTask();
+});
+
+/* ══════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════ */
+renderDashboard();
+updateAlertBadge();
+</script>
+</body>
+</html>
