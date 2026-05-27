@@ -11,6 +11,8 @@
         .btn-print { background: #28a745; color: white; }
         .btn-sync { background: #6f42c1; color: white; }
         .btn-archive { background: #007bff; color: white; }
+        .btn-archive.needs-archive { background: #dc3545; animation: blink 1s ease-in-out infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
         .btn-whatsapp { background: #25d366; color: white; }
         .btn-repair { background: #ffc107; color: #000; }
         .status-tag { padding: 5px 12px; border-radius: 20px; font-size: 13px; font-weight: bold; }
@@ -34,7 +36,7 @@
 </head>
 <body>
     <div class="toolbar">
-        <div><label>תאריך: </label><input type="date" id="datePicker" onchange="render()"></div>
+        <div><label>תאריך: </label><input type="date" id="datePicker" onchange="render(); refreshArchiveReminder();"></div>
         <button class="btn-print" onclick="window.print()">🖨️ הדפס</button>
         <button class="btn-sync" id="syncBtn" onclick="syncWithSheet()">💾 שמור לשיט</button>
         <button class="btn-archive" id="archiveBtn" onclick="doArchive()">📁 תעד בארכיון</button>
@@ -61,6 +63,24 @@
             const tag = document.getElementById('syncStatus');
             tag.innerText = "שינויים טרם נשמרו ⚠️";
             tag.className = "status-tag unsynced";
+        }
+
+        function refreshArchiveReminder() {
+            const btn = document.getElementById('archiveBtn');
+            if (typeof google === 'undefined' || !google.script || !google.script.run) return;
+            const dateStr = formatDate(new Date(document.getElementById('datePicker').value));
+            google.script.run
+                .withSuccessHandler(res => {
+                    if (res && res.archived) {
+                        btn.classList.remove('needs-archive');
+                        btn.innerText = "📁 תועד בארכיון ✓";
+                    } else {
+                        btn.classList.add('needs-archive');
+                        btn.innerText = "📁 תעד בארכיון";
+                    }
+                })
+                .withFailureHandler(() => {})
+                .isDateArchived(dateStr);
         }
 
         function loadData() {
@@ -96,6 +116,7 @@
                     }
                     globalData = res && res.data ? res.data : {};
                     render();
+                    refreshArchiveReminder();
                 })
                 .withFailureHandler(err => {
                     answered = true; clearTimeout(timer);
@@ -242,8 +263,8 @@
             google.script.run
                 .withSuccessHandler(msg => {
                     alert(msg.error ? msg.error : msg);
-                    btn.innerText = "📁 תעד בארכיון";
                     btn.disabled = false;
+                    refreshArchiveReminder();
                 })
                 .withFailureHandler(err => {
                     alert("שגיאה בעת התיעוד: " + err.message);

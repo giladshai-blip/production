@@ -152,6 +152,36 @@ function saveEditsToSheet(flatData) {
 }
 
 /**
+ * בדיקה האם תאריך מסוים כבר תועד בארכיון
+ */
+function isDateArchived(dateStr) {
+  try {
+    const archiveSheet = getSheetFlexible('ארכיון ייצור');
+    if (!archiveSheet) return { archived: false };
+
+    const lastRow = archiveSheet.getLastRow();
+    if (lastRow < 2) return { archived: false };
+
+    const dates = archiveSheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    const target = dateStr.toString().trim();
+
+    const found = dates.some(row => {
+      let cell = row[0];
+      if (cell instanceof Date) {
+        const d = cell.getDate().toString().padStart(2, '0');
+        const m = (cell.getMonth() + 1).toString().padStart(2, '0');
+        cell = d + '/' + m + '/' + cell.getFullYear();
+      }
+      return cell.toString().trim() === target;
+    });
+
+    return { archived: found };
+  } catch (e) {
+    return { archived: false, error: e.message };
+  }
+}
+
+/**
  * שמירה לארכיון
  */
 function archiveProduction(data, dateStr, harlessText) {
