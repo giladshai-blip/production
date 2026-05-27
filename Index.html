@@ -243,9 +243,12 @@
         }
 
         function doArchive() {
+            const btn = document.getElementById('archiveBtn');
+            const alreadyArchived = !btn.classList.contains('needs-archive') && btn.innerText.includes('✓');
+            if (alreadyArchived && !confirm("תאריך זה כבר תועד בארכיון.\nלדרוס את הנתונים הקיימים ולשמור מחדש?")) return;
+
             const dateStr = formatDate(new Date(document.getElementById('datePicker').value));
             const flat = []; let harlessReport = "";
-            const btn = document.getElementById('archiveBtn');
             btn.innerText = "⏳ מתעד...";
             btn.disabled = true;
 

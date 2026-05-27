@@ -182,7 +182,31 @@ function isDateArchived(dateStr) {
 }
 
 /**
- * שמירה לארכיון
+ * מחיקת כל שורות תאריך מסוים מגיליון (עוזר למניעת כפל)
+ */
+function deleteRowsByDate(sheet, dateStr) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+
+  const dates = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  const target = dateStr.toString().trim();
+
+  // מוחק מלמטה למעלה כדי שמספרי השורות לא יזוזו
+  for (let i = dates.length - 1; i >= 0; i--) {
+    let cell = dates[i][0];
+    if (cell instanceof Date) {
+      const d = cell.getDate().toString().padStart(2, '0');
+      const m = (cell.getMonth() + 1).toString().padStart(2, '0');
+      cell = d + '/' + m + '/' + cell.getFullYear();
+    }
+    if (cell.toString().trim() === target) {
+      sheet.deleteRow(i + 2);
+    }
+  }
+}
+
+/**
+ * שמירה לארכיון — מחליף נתונים קיימים לאותו תאריך במקום להוסיף כפל
  */
 function archiveProduction(data, dateStr, harlessText) {
   try {
@@ -193,12 +217,16 @@ function archiveProduction(data, dateStr, harlessText) {
       archiveSheet.appendRow(["תאריך", "מק\"ט", "תיאור", "כמות", "קטגוריה", "סה\"כ עגלות"]);
     }
 
+    // מחיקת שורות קיימות לאותו תאריך לפני ההוספה
+    deleteRowsByDate(archiveSheet, dateStr);
+
     const validData = data.filter(i => i && i.sku && i.sku.toString().trim() !== "");
     validData.forEach(row => {
       archiveSheet.appendRow([dateStr, row.sku, row.desc, row.qty, row.category, Math.round(row.totalCarts)]);
     });
 
     let harlessSheet = getSheetFlexible('תוכנית יומית להרלס') || ss.insertSheet('תוכנית יומית להרלס');
+    deleteRowsByDate(harlessSheet, dateStr);
     harlessSheet.appendRow([dateStr, harlessText]);
 
     return "הנתונים תועדו בארכיון בהצלחה ✅";
