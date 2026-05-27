@@ -67,21 +67,40 @@
             const contentDiv = document.getElementById('content');
 
             if (typeof google === 'undefined' || !google.script || !google.script.run) {
-                contentDiv.innerHTML = '<h3 style="color:orange;">הסביבה לא זמינה. נסה לפתוח את הקישור מחדש.</h3>';
+                contentDiv.innerHTML = '<h3 style="color:orange;">הסביבה לא זמינה. נסה לפתוח את הקישור מחדש (חובה לפתוח דרך כתובת ה-/exec של הפריסה, לא דרך פתיחת קובץ ה-HTML).</h3>';
                 return;
             }
 
+            // אם אין תשובה מהשרת תוך 30 שניות — מציגים שגיאה במקום להישאר תקועים ב-loading
+            let answered = false;
+            const timer = setTimeout(() => {
+                if (answered) return;
+                contentDiv.innerHTML = `<div class="error-box"><h3>הקריאה לשרת נתקעה</h3>
+                    <p>השרת לא החזיר תשובה תוך 30 שניות. הסיבות הנפוצות:</p>
+                    <ol style="text-align:right; line-height:1.8">
+                        <li>לא נפרסה גרסה חדשה: <b>Deploy → Manage deployments → ✏️ → New version → Deploy</b></li>
+                        <li>חסרה הרשאה: ב-Apps Script הרץ את הפונקציה <b>getCategorizedData</b> ידנית ואשר את ההרשאות</li>
+                        <li>שגיאת קומפילציה בקוד (.gs) — בדוק שאין שגיאה אדומה בעורך</li>
+                    </ol>
+                    <button onclick="loadData()" style="background:#007bff;color:white;">🔄 נסה שוב</button></div>`;
+            }, 30000);
+
+            contentDiv.innerHTML = '<h3 style="color:#007bff;">מושך נתונים מהאקסל, אנא המתן...</h3>';
+
             google.script.run
                 .withSuccessHandler(res => {
+                    answered = true; clearTimeout(timer);
                     if (res && res.error) {
                         contentDiv.innerHTML = `<div class="error-box"><h3>שגיאה מהאקסל</h3><p>${res.error}</p></div>`;
                         return;
                     }
-                    globalData = res.data || {};
+                    globalData = res && res.data ? res.data : {};
                     render();
                 })
                 .withFailureHandler(err => {
-                    contentDiv.innerHTML = `<div class="error-box"><h3>שגיאת תקשורת מול גוגל</h3><p>${err.message}</p></div>`;
+                    answered = true; clearTimeout(timer);
+                    contentDiv.innerHTML = `<div class="error-box"><h3>שגיאת תקשורת מול גוגל</h3><p>${err.message}</p>
+                        <button onclick="loadData()" style="background:#007bff;color:white;">🔄 נסה שוב</button></div>`;
                 })
                 .getCategorizedData();
         }
