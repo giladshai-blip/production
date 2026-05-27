@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>מערכת ניהול ייצור</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 20px; background-color: #f4f7f6; }
+        .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; position: sticky; top: 0; z-index: 100; }
+        button { padding: 10px 18px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        .btn-print { background: #28a745; color: white; }
+        .btn-sync { background: #6f42c1; color: white; }
+        .btn-archive { background: #007bff; color: white; }
+        .btn-whatsapp { background: #25d366; color: white; }
+        .btn-repair { background: #ffc107; color: #000; }
+        .status-tag { padding: 5px 12px; border-radius: 20px; font-size: 13px; font-weight: bold; }
+        .synced { background: #d4edda; color: #155724; }
+        .unsynced { background: #fff3cd; color: #856404; }
+        .category-container { background: white; border: 2px solid #000; padding: 15px; margin-bottom: 25px; break-inside: avoid; }
+        .header-area { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 10px; }
+        .header-title { font-size: 28px; font-weight: bold; color: #000; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #000; padding: 8px; text-align: center; font-size: 16px; }
+        th { background: #eee; }
+        [contenteditable="true"] { background: #fffdf0; transition: 0.2s; }
+        [contenteditable="true"]:focus { background: #e6f7ff; outline: 2px solid #007bff; }
+        .summary-row { background: #f0f0f0; font-weight: bold; }
+
+        .error-box { background: #ffeeee; border: 2px solid #ff4444; padding: 20px; border-radius: 8px; margin-top: 20px; text-align: right; }
+        .error-box h3 { color: #cc0000; margin-top: 0; }
+
+        @media print { .toolbar { display: none; } body { background: white; margin: 0; } .page-break { page-break-after: always; display: block; height: 0; } .special-break { page-break-before: always; } }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <div><label>תאריך: </label><input type="date" id="datePicker" onchange="render()"></div>
+        <button class="btn-print" onclick="window.print()">🖨️ הדפס</button>
+        <button class="btn-sync" id="syncBtn" onclick="syncWithSheet()">💾 שמור לשיט</button>
+        <button class="btn-archive" id="archiveBtn" onclick="doArchive()">📁 תעד בארכיון</button>
+        <button class="btn-whatsapp" onclick="sendWhatsapp()">📱 וואטסאפ</button>
+        <button class="btn-repair" id="repairBtn" onclick="repairSheets()">⚡ ניקוי ואיפוס אקסל</button>
+        <span id="syncStatus" class="status-tag synced">סנכרון תקין ✅</span>
+    </div>
+
+    <div id="content">
+        <h3 style="color:#007bff;">מושך נתונים מהאקסל, אנא המתן...</h3>
+    </div>
+
+    <script>
+        let globalData = {};
+        const CATEGORY_ORDER = ["אישי", "בינוני", "גדול", "מיני קיש", "מיני פשטידה", "אירועים", "לזניות"];
+        const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+        document.getElementById('datePicker').valueAsDate = tomorrow;
+
+        function formatDate(date) {
+            return date.getDate().toString().padStart(2, '0') + '/' + (date.getMonth()+1).toString().padStart(2, '0') + '/' + date.getFullYear();
+        }
+
+        function markUnsynced() {
+            const tag = document.getElementById('syncStatus');
+            tag.innerText = "שינויים טרם נשמרו ⚠️";
+            tag.className = "status-tag unsynced";
+        }
+
+        function loadData() {
+            const contentDiv = document.getElementById('content');
+
+            if (typeof google === 'undefined' || !google.script || !google.script.run) {
+                contentDiv.innerHTML = '<h3 style="color:orange;">הסביבה לא זמינה. נסה לפתוח את הקישור מחדש.</h3>';
+                return;
+            }
+
+            google.script.run
+                .withSuccessHandler(res => {
+                    if (res && res.error) {
+                        contentDiv.innerHTML = `<div class="error-box"><h3>שגיאה מהאקסל</h3><p>${res.error}</p></div>`;
+                        return;
+                    }
+                    globalData = res.data || {};
+                    render();
+                })
+                .withFailureHandler(err => {
+                    contentDiv.innerHTML = `<div class="error-box"><h3>שגיאת תקשורת מול גוגל</h3><p>${err.message}</p></div>`;
+                })
+                .getCategorizedData();
+        }
+
+        function repairSheets() {
+            if(!confirm("זה ינקה חסימות מהשיט ויחזיר את הנוסחאות. להמשיך?")) return;
+            const btn = document.getElementById('repairBtn');
+            const originalText = btn.innerText;
+            btn.innerText = "⏳ מנקה חסימות...";
+            btn.disabled = true;
+
+            google.script.run
+                .withSuccessHandler(msg => {
+                    alert(msg.error ? msg.error : msg);
+                    btn.innerText = originalText;
+                    btn.disabled = false;
+                    loadData();
+                })
+                .withFailureHandler(err => {
+                    alert("שגיאה בתיקון: " + err.message);
+                    btn.innerText = originalText;
+                    btn.disabled = false;
+                })
+                .resetSheetFormulas();
+        }
+
+        function render() {
+            const container = document.getElementById('content');
+            container.innerHTML = '';
+
+            const dateStr = formatDate(new Date(document.getElementById('datePicker').value));
+            const keys = Object.keys(globalData);
+
+            const safeKeys = keys.filter(k => k !== "error");
+            const sortedKeys = [...CATEGORY_ORDER.filter(k => safeKeys.includes(k)), ...safeKeys.filter(k => !CATEGORY_ORDER.includes(k) && k !== "מיוחדים")];
+            if (safeKeys.includes("מיוחדים")) sortedKeys.push("מיוחדים");
+
+            if (safeKeys.length === 0) {
+                container.innerHTML = "<h3>אין נתונים להצגה. וודא שיש כמויות בגיליון 'תוכנית עבודה' ולחץ על הלחצן הצהוב לתיקון.</h3>";
+                return;
+            }
+
+            let renderedCount = 0;
+
+            sortedKeys.forEach((cat, idx) => {
+                if(!globalData[cat] || !Array.isArray(globalData[cat]) || globalData[cat].length === 0) return;
+
+                let catSum = 0;
+                let html = `<div class="category-container ${cat === 'מיוחדים' ? 'special-break' : ''}"><div class="header-area"><div class="header-title">${cat} - ${dateStr}</div></div><table><thead><tr><th>מק"ט</th><th>תיאור</th><th>כמות</th><th>עגלות</th></tr></thead><tbody>`;
+
+                globalData[cat].forEach((item, itemIdx) => {
+                    const roundedCarts = Math.round(item.totalCarts || 0);
+                    catSum += roundedCarts;
+                    html += `<tr>
+                        <td contenteditable="true" oninput="markUnsynced()" onblur="updateVal('${cat}', ${itemIdx}, 'sku', this.innerText)">${item.sku}</td>
+                        <td style="text-align:right">${item.desc}</td>
+                        <td contenteditable="true" oninput="markUnsynced()" onblur="updateVal('${cat}', ${itemIdx}, 'qty', this.innerText, true)">${item.qty}</td>
+                        <td><b>${roundedCarts}</b></td>
+                    </tr>`;
+                });
+
+                html += `<tr class="summary-row"><td colspan="3" style="text-align:left; padding-left:20px">סה"כ עגלות:</td><td>${catSum}</td></tr></tbody></table></div>`;
+                if ((renderedCount + 1) % 2 === 0 && cat !== "מיוחדים" && idx !== sortedKeys.length - 1) html += `<div class="page-break"></div>`;
+
+                container.innerHTML += html;
+                renderedCount++;
+            });
+
+            container.innerHTML += `
+            <div class="category-container" style="margin-top: 30px; border-color:#666;">
+                <div class="header-area"><div class="header-title" style="font-size:22px;">הערות להפקה</div></div>
+                <div contenteditable="true" oninput="markUnsynced()" id="productionNotes" style="min-height: 80px; padding: 10px; font-size:18px; text-align:right; background:#fffdf0; border:1px dashed #ccc;"></div>
+            </div>`;
+        }
+
+        function updateVal(cat, idx, field, val, isNum = false) {
+            let cleanVal = isNum ? parseFloat(val.toString().replace(/[^\d.-]/g, '')) || 0 : val.toString().trim();
+            globalData[cat][idx][field] = cleanVal;
+
+            if (field === 'qty') {
+                const item = globalData[cat][idx];
+                item.totalCarts = item.perCart > 0 ? item.qty / item.perCart : 0;
+                render();
+            }
+        }
+
+        function syncWithSheet() {
+            const btn = document.getElementById('syncBtn');
+            btn.innerText = "⏳ מסנכרן...";
+            btn.disabled = true;
+
+            const flat = [];
+            Object.keys(globalData).forEach(cat => {
+                if (cat !== "error" && Array.isArray(globalData[cat])) {
+                    flat.push(...globalData[cat]);
+                }
+            });
+
+            google.script.run
+                .withSuccessHandler(msg => {
+                    btn.innerText = "💾 שמור לשיט";
+                    btn.disabled = false;
+                    if(msg && msg.error) {
+                        alert(msg.error);
+                    } else {
+                        const tag = document.getElementById('syncStatus');
+                        tag.innerText = "סנכרון תקין ✅";
+                        tag.className = "status-tag synced";
+                        alert(msg);
+                        loadData();
+                    }
+                })
+                .withFailureHandler(err => {
+                    btn.innerText = "💾 שמור לשיט";
+                    btn.disabled = false;
+                    alert("שגיאת סנכרון מול גוגל: " + err.message);
+                })
+                .saveEditsToSheet(flat);
+        }
+
+        function doArchive() {
+            const dateStr = formatDate(new Date(document.getElementById('datePicker').value));
+            const flat = []; let harlessReport = "";
+            const btn = document.getElementById('archiveBtn');
+            btn.innerText = "⏳ מתעד...";
+            btn.disabled = true;
+
+            ["אישי", "בינוני", "גדול", "מיני קיש"].forEach(c => {
+                let sum = 0;
+                if (globalData[c]) globalData[c].forEach(i => { sum += Math.round(i.totalCarts); flat.push({...i, category: c}); });
+                harlessReport += `${c}: ${sum} | `;
+            });
+            Object.keys(globalData).forEach(c => {
+                if (!["אישי", "בינוני", "גדול", "מיני קיש", "error"].includes(c) && Array.isArray(globalData[c])) {
+                    globalData[c].forEach(i => flat.push({...i, category: c}));
+                }
+            });
+
+            google.script.run
+                .withSuccessHandler(msg => {
+                    alert(msg.error ? msg.error : msg);
+                    btn.innerText = "📁 תעד בארכיון";
+                    btn.disabled = false;
+                })
+                .withFailureHandler(err => {
+                    alert("שגיאה בעת התיעוד: " + err.message);
+                    btn.innerText = "📁 תעד בארכיון";
+                    btn.disabled = false;
+                })
+                .archiveProduction(flat, dateStr, harlessReport);
+        }
+
+        function sendWhatsapp() {
+            const dateStr = formatDate(new Date(document.getElementById('datePicker').value));
+            let msg = `*תוכנית עבודה - ${dateStr}*\n\n`;
+
+            ["אישי", "בינוני", "גדול", "מיני קיש"].forEach(c => {
+                let sum = 0;
+                if (globalData[c]) globalData[c].forEach(i => sum += Math.round(i.totalCarts));
+                msg += `*${c}:* ${sum} עגלות\n`;
+            });
+
+            const notesElement = document.getElementById('productionNotes');
+            if (notesElement && notesElement.innerText.trim() !== '') {
+                msg += `\n*הערות:*\n${notesElement.innerText.trim()}`;
+            }
+
+            window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+        }
+
+        window.onload = loadData;
+    </script>
+</body>
+</html>
