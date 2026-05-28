@@ -361,10 +361,10 @@
 
   <div style="padding: 16px; border-top: 1px solid var(--border); display:flex; flex-direction:column; gap:8px;">
     <button class="btn btn-primary" style="width:100%; justify-content:center;" onclick="saveToCurrentFile()">
-      💾 שמור
+      💾 שמור data.json לגיט
     </button>
     <button class="btn btn-outline" style="width:100%; justify-content:center;" onclick="saveAsNewFile()">
-      📁 שמור בשם
+      📁 שמור בשם (JSON)
     </button>
     <button class="btn btn-outline" style="width:100%; justify-content:center;" onclick="exportDatabase()">
       🌐 ייצא ל-HTML
@@ -2804,12 +2804,34 @@ const INITIAL_PARENT_RECIPES = [
   { sku: "12933", title: "ספנקופיטה אישי", category: "מיוחדים" }
 ];
 
-// Load from localStorage
-function loadData() {
-  const saved = localStorage.getItem('biscotti-db');
-  if (saved) {
-    try { DATABASE = JSON.parse(saved); } catch(e) {}
+// Load data: fetch data.json (git-synced) first, fall back to localStorage cache
+async function loadData() {
+  let fetched = null;
+  try {
+    const res = await fetch('data.json?_=' + Date.now());
+    if (res.ok) fetched = await res.json();
+  } catch(e) {}
+
+  if (fetched && fetched.recipes) {
+    // Prefer git-synced data.json; merge with localStorage if localStorage is newer
+    const saved = localStorage.getItem('biscotti-db');
+    if (saved) {
+      try {
+        const local = JSON.parse(saved);
+        // Use whichever has more recipes (rough freshness heuristic)
+        DATABASE = (local.recipes && local.recipes.length >= fetched.recipes.length) ? local : fetched;
+      } catch(e) { DATABASE = fetched; }
+    } else {
+      DATABASE = fetched;
+    }
+  } else {
+    // No data.json available (local file open, no server) — use localStorage
+    const saved = localStorage.getItem('biscotti-db');
+    if (saved) {
+      try { DATABASE = JSON.parse(saved); } catch(e) {}
+    }
   }
+
   // Ensure arrays exist
   if (!DATABASE.recipes) DATABASE.recipes = [];
   if (!DATABASE.parentSkuDb) DATABASE.parentSkuDb = [];
@@ -2824,6 +2846,9 @@ function loadData() {
       if (!savedItem) DATABASE.parentSkuDb.push({...initialItem});
     });
   }
+
+  // Always sync latest state back to localStorage as cache
+  localStorage.setItem('biscotti-db', JSON.stringify(DATABASE));
 }
 
 function saveData() {
@@ -2845,11 +2870,12 @@ let printWithEnglish = false;
 let showEnglishEdit = false;
 
 // ========== INIT ==========
-loadData();
-renderIngredientsTable();   // FIX 1: overwrite hardcoded rows with correct empty state
-renderArchive();
-renderSKUDb();
-renderParentSKUDb();
+loadData().then(() => {
+  renderIngredientsTable();   // FIX 1: overwrite hardcoded rows with correct empty state
+  renderArchive();
+  renderSKUDb();
+  renderParentSKUDb();
+});
 
 // ========== NAVIGATION ==========
 function showPage(page) {
@@ -4110,10 +4136,16 @@ function restoreBackup(event) {
 
 // ========== NEW SAVE SYSTEM ==========
 
-// Function to handle "Save" (overwrite local storage implicitly, but conceptually save to current working file)
+// Download data.json for git commit — this is the primary sync mechanism
 function saveToCurrentFile() {
-  saveData(); // Always saves to localStorage
-  toast('✅ הנתונים נשמרו בהצלחה (במערכת הנוכחית)');
+  saveData(); // update localStorage cache first
+  const dbJson = JSON.stringify(DATABASE, null, 2);
+  const blob = new Blob([dbJson], { type: 'application/json;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'data.json';
+  a.click();
+  toast('💾 data.json הורד — העלה לגיט כדי לסנכרן בין מכשירים');
 }
 
 // Function to handle "Save As" (download as JSON, making it portable)
