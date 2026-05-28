@@ -697,13 +697,7 @@ function applyGapToItems(items) {
                    : item.stock < item.min ? 'low'
                    : 'plan';
     }
-    // Sync dayQtys with current dayIdx (unless user manually distributed across days)
-    if (!item.manuallyEdited) {
-      item.dayQtys = Array(6).fill(0);
-      item.dayQtys[item.dayIdx] = item.toProduceBoxes;
-    } else {
-      item.dayQtys = item.dayQtys || Array(6).fill(0);
-    }
+    if (!item.dayQtys) item.dayQtys = Array(6).fill(0);
   });
 }
 
@@ -762,7 +756,7 @@ function processWMS(rows, filename) {
         dayIdx, originalDayIdx: dayIdx, baseDayIdx: dayIdx,
         nextWeekDayIdx, urgency,
         capacityMoved: false, capacityWarn: false,
-        dayQtys: (() => { const q = Array(6).fill(0); q[dayIdx] = toProduceBoxes; return q; })(),
+        dayQtys: Array(6).fill(0),
         shipped: 0, manuallyEdited: false,
         openOrders: 0, netStock: stock,
       };
@@ -1184,7 +1178,6 @@ function recalcItem(item) {
   item.capacityMoved  = false;
   item.capacityWarn   = false;
   item.dayQtys        = Array(6).fill(0);
-  item.dayQtys[item.dayIdx] = item.toProduceBoxes;
   item.manuallyEdited = false;
   item.shipped        = item.shipped || 0;
   return item;
@@ -1451,7 +1444,6 @@ function applyQuicheCapacity(items) {
     item.capacityWarn  = false;
     if (!item.manuallyEdited) {
       item.dayQtys = Array(6).fill(0);
-      item.dayQtys[item.dayIdx] = item.toProduceBoxes;
     }
   });
 
@@ -1471,7 +1463,6 @@ function applyQuicheCapacity(items) {
           if (d < item.dayIdx) {
             if (!item.manuallyEdited) {
               item.dayQtys = Array(6).fill(0);
-              item.dayQtys[d] = item.toProduceBoxes;
             }
             item.dayIdx = d; item.capacityMoved = true;
           }
@@ -1569,7 +1560,7 @@ function editMinMax(id, field) {
 function editDayQty(id, d, wo = 0) {
   const item   = planData.find(r => r.id === id);
   if (!item) return;
-  if (!item.dayQtys) { item.dayQtys = Array(6).fill(0); item.dayQtys[item.dayIdx] = item.toProduceBoxes; }
+  if (!item.dayQtys) { item.dayQtys = Array(6).fill(0); }
   const cellId = `dcell_${id}_${d}`;
   const cell   = document.getElementById(cellId);
   if (!cell) return;
