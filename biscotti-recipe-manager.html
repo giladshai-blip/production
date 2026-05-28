@@ -2862,6 +2862,8 @@ let editingRecipeId = null;
 let ingredients = [];
 let printWithEnglish = false;
 let showEnglishEdit = false;
+let parentFilter = null;
+let toastTimer;
 
 // ========== INIT ==========
 loadData();
@@ -4023,8 +4025,6 @@ function addParentSkuRow() {
   renderParentSKUDb();
 }
 
-let parentFilter = null; // null | 'no-recipe' | 'no-weight'
-
 function toggleParentFilter(type) {
   parentFilter = (parentFilter === type) ? null : type;
   // Update button styles
@@ -4319,7 +4319,6 @@ function escHtml(str) {
   return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-let toastTimer;
 function toast(msg, isError = false) {
   const t = document.getElementById('toast');
   t.style.background = isError ? '#d93025' : '#323232';
