@@ -194,6 +194,7 @@ tr.row-critical:hover td{filter:brightness(.97)}
 /* Subtotal / total rows */
 tr.sub-row td{background:var(--green-light)!important;font-weight:700;color:var(--green);border-top:1px solid #a3e4b2}
 tr.grand-row td{background:var(--header)!important;color:#fff!important;font-weight:700;font-size:13px;border-top:3px solid var(--header2)}
+tr.grand-row td{position:sticky;bottom:0;z-index:6;border-top:2px solid var(--blue2)!important}
 tr.grand-row .day-cell{font-size:13px}
 
 /* fixed cols */
@@ -362,6 +363,7 @@ tr.grand-row .day-cell{font-size:13px}
       <button class="btn btn-white btn-sm no-print" onclick="document.getElementById('gapInput').click()" title="טען קובץ GAP עם הזמנות פתוחות">📋 טען הזמנות</button>
       <span id="gapStatus" style="display:none;font-size:11px;opacity:.8;background:rgba(124,58,237,.18);border-radius:6px;padding:3px 8px;color:#ede9fe"></span>
       <button class="btn btn-white btn-sm no-print" id="archiveBtn" style="display:none" onclick="openArchive()">🗄️ ארכיון</button>
+      <button class="btn btn-white btn-sm no-print" onclick="copyWeekForward()" title="העתק תוכנית שבוע נוכחי לשבוע הבא">📋 העתק שבוע</button>
       <button class="btn btn-white btn-sm no-print" onclick="window.print()">🖨️ הדפס</button>
       <button class="btn btn-white btn-sm no-print" onclick="saveHtmlFile()" title="שמור את כל התוכנית כקובץ HTML — ניתן לפתוח מחדש ללא WMS">💾 שמור HTML</button>
       <button class="btn btn-green btn-sm no-print" onclick="exportExcel()">📥 ייצוא Excel</button>
@@ -548,6 +550,54 @@ let rawFile     = null; // for export
 let _editId     = null; // null=add mode, string=edit mode
 let gapData     = {}; // { sku: openOrdersQty } — loaded from GAP file
 
+/* ── AUTO-SAVE ─────────────────────────────────────────────── */
+function _autoSave() {
+  try {
+    localStorage.setItem('wpp_autosave', JSON.stringify({ planData, archiveData, gapData, ts: Date.now() }));
+  } catch(e) {}
+  const ind = document.getElementById('autoSaveIndicator');
+  if (ind) { ind.style.display='inline'; clearTimeout(ind._t); ind._t = setTimeout(()=>ind.style.display='none', 2000); }
+}
+function _autoRestore() {
+  try {
+    const raw = localStorage.getItem('wpp_autosave');
+    if (!raw) return false;
+    const saved = JSON.parse(raw);
+    if (!saved?.planData?.length) return false;
+    // Only restore if same SKU set
+    const curSkus  = new Set(planData.map(r => r.sku));
+    const saveSkus = new Set(saved.planData.map(r => r.sku));
+    if (curSkus.size !== saveSkus.size || [...curSkus].some(s => !saveSkus.has(s))) return false;
+    // Merge only manual fields (dayQtys, futureQtys, shipped, manuallyEdited)
+    saved.planData.forEach(saved_r => {
+      const live = planData.find(r => r.sku === saved_r.sku && r.desc === saved_r.desc);
+      if (!live) return;
+      if (saved_r.dayQtys)      live.dayQtys      = saved_r.dayQtys;
+      if (saved_r.futureQtys)   live.futureQtys   = saved_r.futureQtys;
+      if (saved_r.shipped)      live.shipped       = saved_r.shipped;
+      if (saved_r.manuallyEdited) live.manuallyEdited = true;
+    });
+    gapData = saved.gapData || gapData;
+    return true;
+  } catch(e) { return false; }
+}
+
+/* ── UNDO ───────────────────────────────────────────────────── */
+const _undoStack = [];
+function _pushUndo(fn) { _undoStack.push(fn); if (_undoStack.length > 30) _undoStack.shift(); }
+function undoLastEdit() {
+  const fn = _undoStack.pop();
+  if (fn) { fn(); renderGantt(); showToast('↩️ פעולה בוטלה'); }
+}
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+    const active = document.activeElement;
+    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
+    e.preventDefault();
+    undoLastEdit();
+  }
+});
+
 /* ══════════════════════════════════════════════════════════════
    FILE HANDLING
 ══════════════════════════════════════════════════════════════ */
@@ -592,6 +642,8 @@ function readFile(file) {
         // exclude items whose SKU+desc appear in the archive
         const archSet = new Set(archiveData.map(a => a.sku + '|' + a.desc));
         planData = raw.filter(r => !archSet.has(r.sku + '|' + r.desc));
+        const restored = _autoRestore();
+        if (restored) showToast('♻️ נתונים ידניים שוחזרו אוטומטית');
         showLoad('בונה גנט שבועי...',90);
         setTimeout(() => buildPlanScreen(), 300);
       }, 100);
@@ -999,9 +1051,11 @@ function renderGantt() {
           return `<td id="${cellId}" class="${cls}" onclick="editDayQty('${r.id}',${d},${weekOffset})" title="לחץ לעריכה">${content}</td>`;
         }).join('');
 
+        const dailyRate = r.days > 0 ? (r.stock / r.days).toFixed(1) : '—';
+        const daysTitle = `מלאי נוכחי: ${r.stock.toLocaleString('he-IL')} | קצב יומי ≈ ${dailyRate} יח'/יום | מקסימום: ${r.max.toLocaleString('he-IL')}`;
         const daysDisplay = r.days < 1
-          ? `<span class="badge-days badge-zero">0</span>`
-          : `<span class="badge-days">${Number(r.days).toFixed(1)}</span>`;
+          ? `<span class="badge-days badge-zero" title="${daysTitle}">0</span>`
+          : `<span class="badge-days" title="${daysTitle}">${Number(r.days).toFixed(1)}</span>`;
 
         const minBoxes = Math.floor(r.min / Math.max(1, r.upp));
         const maxBoxes = Math.floor(r.max / Math.max(1, r.upp));
@@ -1036,6 +1090,7 @@ function renderGantt() {
           <td class="td-num">${Math.floor(rowBoxes/UNITS_PER_CART)}</td>
           ${expCell}
           <td class="td-actions no-print">
+            <button class="act-btn" onclick="clearItemQtys('${r.id}')" title="נקה כמויות גנט">🧹</button>
             <button class="act-btn act-edit" onclick="openEditModal('${r.id}')" title="עריכה">✏️</button>
             <button class="act-btn act-del"  onclick="deleteItem('${r.id}')"     title="העבר לארכיון">🗑️</button>
           </td>
@@ -1098,13 +1153,16 @@ function exportExcel() {
   aoa.push(['משפחה','מק"ט','תאור מוצר','מלאי', ...(hasGapExp?["הזמ'"]:[]
   ),'ימי מלאי',...dayHeaders,'סה"כ אריזות','עגלות']);
 
+  // NEW — use actual dayQtys (manually filled Gantt):
+  const _expWo = window._weekOffset || 0;
   const groups = {};
   planData.forEach(r => {
     const k = r.fam + '|' + r.fname;
     if (!groups[k]) groups[k] = {fname:r.fname,fam:r.fam,items:[],dayTotals:Array(6).fill(0),total:0};
     groups[k].items.push(r);
-    groups[k].dayTotals[r.dayIdx] += r.toProduceBoxes;
-    groups[k].total += r.toProduceBoxes;
+    const wq = _expWo === 0 ? r.dayQtys : (r.futureQtys?.[_expWo] || Array(6).fill(0));
+    wq.forEach((v,d) => { groups[k].dayTotals[d] += v; });
+    groups[k].total += wq.reduce((s,v)=>s+v,0);
   });
 
   const grandDay = Array(6).fill(0);
@@ -1112,10 +1170,11 @@ function exportExcel() {
 
   Object.values(groups).sort((a,b) => a.fam.localeCompare(b.fam)).forEach(g => {
     aoa.push([`◆ ${g.fname} (${g.fam})`,...Array(10).fill('')]);
-    g.items.sort((a,b) => a.dayIdx - b.dayIdx).forEach(r => {
-      const days = Array(6).fill('');
-      days[r.dayIdx] = r.toProduceBoxes;
-      aoa.push([r.fname, r.sku, r.desc, r.stock, ...(hasGapExp?[r.openOrders||0]:[]), r.days.toFixed(1), ...days, r.toProduceBoxes, r.carts]);
+    g.items.sort((a,b) => a.fname.localeCompare(b.fname) || a.desc.localeCompare(b.desc)).forEach(r => {
+      const wq = _expWo === 0 ? r.dayQtys : (r.futureQtys?.[_expWo] || Array(6).fill(0));
+      const rowTotal = wq.reduce((s,v)=>s+v,0);
+      const days = wq.map(v => v || '');
+      aoa.push([r.fname, r.sku, r.desc, r.stock, ...(hasGapExp?[r.openOrders||0]:[]), r.days.toFixed(1), ...days, rowTotal, Math.floor(rowTotal/UNITS_PER_CART)]);
     });
     aoa.push([`סה"כ ${g.fname}`,'','','', ...(hasGapExp?['']:[]),'', ...g.dayTotals.map(v=>v||''), g.total, Math.floor(g.total/UNITS_PER_CART)]);
     g.dayTotals.forEach((v,d) => { grandDay[d] += v; });
@@ -1418,6 +1477,7 @@ async function saveHtmlFile() {
     gapData     = state.gapData     || {};
     applyGapToItems(planData);
     applyQuicheCapacity(planData);
+    _autoSave();
     updateArchiveBtn();
     // Restore GAP status indicator if GAP was saved
     const gapCnt = Object.keys(gapData).length;
@@ -1532,7 +1592,7 @@ function editShipped(id) {
   inp.type = 'number'; inp.value = item.shipped || 0; inp.min = 0;
   inp.style.cssText = 'width:56px;text-align:center;border:2px solid var(--blue2);border-radius:4px;padding:2px 4px;font-size:12px;font-weight:700;background:#fff;outline:none';
   let done = false;
-  const save = () => { if (done) return; done = true; item.shipped = Math.max(0, parseFloat(inp.value)||0); renderStats(); renderGantt(); };
+  const save = () => { if (done) return; done = true; item.shipped = Math.max(0, parseFloat(inp.value)||0); renderStats(); _autoSave(); renderGantt(); };
   inp.onblur = save;
   inp.onkeydown = e => { if (e.key==='Enter') inp.blur(); if (e.key==='Escape') { done=true; renderGantt(); } };
   cell.innerHTML = ''; cell.appendChild(inp);
@@ -1554,12 +1614,26 @@ function editMinMax(id, field) {
     recalcItem(item);
     applyGapToItems(planData);
     applyQuicheCapacity(planData);
-    renderStats(); renderGantt();
+    renderStats(); _autoSave(); renderGantt();
   };
   inp.onblur = save;
   inp.onkeydown = e => { if (e.key==='Enter') inp.blur(); if (e.key==='Escape') { done=true; renderGantt(); } };
   cell.innerHTML = ''; cell.appendChild(inp);
   setTimeout(() => { inp.focus(); inp.select(); }, 0);
+}
+
+function clearItemQtys(id) {
+  const item = planData.find(r => r.id === id);
+  if (!item) return;
+  const _prevDq = [...item.dayQtys];
+  const _prevFq = item.futureQtys ? JSON.parse(JSON.stringify(item.futureQtys)) : null;
+  const _prevMe = item.manuallyEdited;
+  _pushUndo(() => { item.dayQtys = _prevDq; if (_prevFq) item.futureQtys = _prevFq; item.manuallyEdited = _prevMe; renderGantt(); });
+  item.dayQtys = Array(6).fill(0);
+  item.futureQtys = {};
+  item.manuallyEdited = false;
+  _autoSave();
+  renderGantt();
 }
 
 function editDayQty(id, d, wo = 0) {
@@ -1584,7 +1658,10 @@ function editDayQty(id, d, wo = 0) {
     inp.value = item.futureQtys[wo][d] || 0;
     const saveFuture = () => {
       if (done) return; done = true;
+      const _prevFutVal = item.futureQtys[wo][d];
+      _pushUndo(() => { item.futureQtys[wo][d] = _prevFutVal; });
       item.futureQtys[wo][d] = Math.max(0, parseInt(inp.value) || 0);
+      _autoSave();
       renderGantt();
     };
     inp.onblur    = saveFuture;
@@ -1598,6 +1675,9 @@ function editDayQty(id, d, wo = 0) {
   inp.value = item.dayQtys[d] || 0;
   const save = () => {
     if (done) return; done = true;
+    const _prevDayQtys = [...item.dayQtys];
+    const _prevManual = item.manuallyEdited;
+    _pushUndo(() => { item.dayQtys = _prevDayQtys; item.manuallyEdited = _prevManual; applyQuicheCapacity(planData); renderStats(); });
     item.dayQtys[d]     = Math.max(0, parseInt(inp.value) || 0);
     item.manuallyEdited = true;
     const total         = item.dayQtys.reduce((s,v) => s+v, 0);
@@ -1608,6 +1688,7 @@ function editDayQty(id, d, wo = 0) {
     if (first >= 0) item.dayIdx = first;
     applyQuicheCapacity(planData);
     renderStats();
+    _autoSave();
     renderGantt();
   };
   inp.onblur    = save;
@@ -1620,6 +1701,20 @@ function editDayQty(id, d, wo = 0) {
 /* ══════════════════════════════════════════════════════════════
    WEEK TOGGLE
 ══════════════════════════════════════════════════════════════ */
+function copyWeekForward() {
+  const wo = window._weekOffset || 0;
+  const target = wo + 1;
+  if (target > 4) { showToast('אין שבוע נוסף קדימה'); return; }
+  planData.forEach(item => {
+    if (!item.futureQtys) item.futureQtys = {};
+    const src = wo === 0 ? item.dayQtys : (item.futureQtys[wo] || Array(6).fill(0));
+    item.futureQtys[target] = [...src];
+  });
+  _autoSave();
+  setWeekOffset(target);
+  showToast(`✅ שבוע +${wo} הועתק לשבוע +${target}`);
+}
+
 function setWeekOffset(n) {
   window._weekOffset = n;
   window._viewMode   = n === 0 ? 'current' : 'next'; // backward compat
