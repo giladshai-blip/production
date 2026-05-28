@@ -187,7 +187,7 @@
     transition: all 0.25s; z-index: 999; pointer-events: none;
     max-width: 340px; display: flex; align-items: center;
   }
-  #toast.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+  #toast.show { opacity: 1; transform: translateY(0); }
 
   /* Steps display */
   .step-item {
@@ -2805,31 +2805,10 @@ const INITIAL_PARENT_RECIPES = [
 ];
 
 // Load data: fetch data.json (git-synced) first, fall back to localStorage cache
-async function loadData() {
-  let fetched = null;
-  try {
-    const res = await fetch('data.json?_=' + Date.now());
-    if (res.ok) fetched = await res.json();
-  } catch(e) {}
-
-  if (fetched && fetched.recipes) {
-    // Prefer git-synced data.json; merge with localStorage if localStorage is newer
-    const saved = localStorage.getItem('biscotti-db');
-    if (saved) {
-      try {
-        const local = JSON.parse(saved);
-        // Use whichever has more recipes (rough freshness heuristic)
-        DATABASE = (local.recipes && local.recipes.length >= fetched.recipes.length) ? local : fetched;
-      } catch(e) { DATABASE = fetched; }
-    } else {
-      DATABASE = fetched;
-    }
-  } else {
-    // No data.json available (local file open, no server) — use localStorage
-    const saved = localStorage.getItem('biscotti-db');
-    if (saved) {
-      try { DATABASE = JSON.parse(saved); } catch(e) {}
-    }
+function loadData() {
+  const saved = localStorage.getItem('biscotti-db');
+  if (saved) {
+    try { DATABASE = JSON.parse(saved); } catch(e) {}
   }
 
   // Ensure arrays exist
@@ -2837,18 +2816,33 @@ async function loadData() {
   if (!DATABASE.parentSkuDb) DATABASE.parentSkuDb = [];
   if (!DATABASE.skuDb) DATABASE.skuDb = [];
 
-  // Load Initial Parent SKUs if empty
+  // Seed initial parent SKUs
   if (DATABASE.parentSkuDb.length === 0) {
     DATABASE.parentSkuDb = JSON.parse(JSON.stringify(INITIAL_PARENT_RECIPES));
   } else {
-    INITIAL_PARENT_RECIPES.forEach(initialItem => {
-      const savedItem = DATABASE.parentSkuDb.find(s => s.sku === initialItem.sku);
-      if (!savedItem) DATABASE.parentSkuDb.push({...initialItem});
+    INITIAL_PARENT_RECIPES.forEach(item => {
+      if (!DATABASE.parentSkuDb.find(s => s.sku === item.sku))
+        DATABASE.parentSkuDb.push({...item});
     });
   }
+}
 
-  // Always sync latest state back to localStorage as cache
-  localStorage.setItem('biscotti-db', JSON.stringify(DATABASE));
+function syncFromServer() {
+  fetch('data.json?_=' + Date.now())
+    .then(r => r.ok ? r.json() : null)
+    .then(remote => {
+      if (!remote || !Array.isArray(remote.recipes)) return;
+      if (remote.recipes.length > DATABASE.recipes.length) {
+        DATABASE = remote;
+        if (!DATABASE.skuDb) DATABASE.skuDb = [];
+        if (!DATABASE.parentSkuDb) DATABASE.parentSkuDb = [];
+        saveData();
+        renderArchive();
+        renderSKUDb();
+        renderParentSKUDb();
+      }
+    })
+    .catch(() => {});
 }
 
 function saveData() {
@@ -2870,12 +2864,12 @@ let printWithEnglish = false;
 let showEnglishEdit = false;
 
 // ========== INIT ==========
-loadData().then(() => {
-  renderIngredientsTable();   // FIX 1: overwrite hardcoded rows with correct empty state
-  renderArchive();
-  renderSKUDb();
-  renderParentSKUDb();
-});
+loadData();
+renderArchive();
+renderSKUDb();
+renderParentSKUDb();
+renderIngredientsTable();
+syncFromServer();
 
 // ========== NAVIGATION ==========
 function showPage(page) {
