@@ -111,6 +111,8 @@ button{cursor:pointer;font-family:inherit}
 /* Filters */
 .filters{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px}
 .filter-label{font-size:12px;font-weight:600;color:var(--text2);white-space:nowrap}
+.fsearch{border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:13px;font-family:inherit;background:#fff;color:var(--text);min-width:200px;direction:rtl}
+.fsearch:focus{outline:none;border-color:var(--blue2);box-shadow:0 0 0 2px rgba(37,99,235,.12)}
 select.fsel{background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:7px;padding:6px 10px;font-size:12px;outline:none;cursor:pointer}
 select.fsel:focus{border-color:var(--blue2)}
 .legend{display:flex;gap:14px;margin-right:auto;flex-wrap:wrap}
@@ -388,6 +390,7 @@ tr.grand-row .day-cell{font-size:13px}
         <button id="btn-w4" onclick="setWeekOffset(4)">+4</button>
       </div>
       <span class="filter-label">סינון:</span>
+      <input type="search" class="fsearch" id="fSearch" placeholder="חיפוש: משפחה / מק&quot;ט / תיאור..." oninput="renderGantt()" autocomplete="off">
       <select class="fsel" id="fFam" onchange="renderGantt()">
         <option value="">כל המשפחות</option>
       </select>
@@ -881,6 +884,7 @@ function renderGantt() {
   const fFam      = document.getElementById('fFam').value;
   const fUrg      = document.getElementById('fUrg').value;
   const fDay      = document.getElementById('fDay').value;
+  const fSearch   = (document.getElementById('fSearch')?.value || '').trim().toLowerCase();
   const hasGap      = Object.keys(gapData).length > 0;
   const weekOffset  = window._weekOffset || 0;
   // Cols: משפחה מק"ט תאור מלאי שולח [הזמ'] מינ' מקס' ימי + 6 days + סה"כ עגלות מלאי_צפוי פעולות
@@ -910,6 +914,7 @@ function renderGantt() {
   if (hint) hint.style.display = '';
 
   const rows = planData.filter(r => {
+    if (fSearch && !r.fname.toLowerCase().includes(fSearch) && !r.sku.toLowerCase().includes(fSearch) && !r.desc.toLowerCase().includes(fSearch)) return false;
     if (!fFam || r.fname === fFam) {} else return false;
     if (!fUrg || r.urgency === fUrg) {} else return false;
     if (fDay === '') return true;
